@@ -1,0 +1,1034 @@
+import os
+import tkinter as tk
+from tkinter import filedialog, messagebox, simpledialog
+from PIL import Image, ImageTk, ImageDraw, ImageOps
+import colorsys
+from collections import defaultdict
+from image_augmenter import ImageAugmenter
+import webbrowser
+import http.server
+import socketserver
+import threading
+import functools
+
+class WelcomeScreen:
+
+
+    print(os.getcwd())
+    def __init__(self, root, on_finish_callback):
+        self.root = root
+        self.root.title("An-Augmenter")
+        self.on_finish = on_finish_callback
+        self.slide = 0
+        self.slides = [self.show_logo_screen, self.show_instruction_screen, self.show_workflow_screen]
+        self.frame = tk.Frame(self.root, bg='lightblue')
+        self.frame.pack(fill=tk.BOTH, expand=True)
+        self.show_logo_screen()
+        self.PORT = 8000  # or any available port you like
+        self.server_thread = None
+
+        threading.Thread(target=self.start_server, daemon=True).start()
+
+    def start_server(self):
+        try:
+            # Change directory to where your video is
+            os.chdir("C:/Users/Samriddha/OneDrive - North Dakota University System/Samriddha/Coursework/ABEN 758/Image_Annotation_Augmentation_Project/")
+
+            handler = http.server.SimpleHTTPRequestHandler
+            with socketserver.TCPServer(("", self.PORT), handler) as httpd:
+                print(f"Serving at http://localhost:{self.PORT}")
+                httpd.serve_forever()
+        except OSError as e:
+            print(f"Failed to start server: {e}")
+
+    # def start_server_in_background(self):
+    #     """Call this after WelcomeScreen is created"""
+    #     self.server_thread = threading.Thread(target=self.start_server, daemon=True)
+    #     self.server_thread.start()
+
+    def clear_frame(self):
+        for widget in self.frame.winfo_children():
+            widget.destroy()
+
+    def show_logo_screen(self):
+        self.clear_frame()
+
+        # Top navy blue header
+        header = tk.Frame(self.frame, bg='lightblue', height=80)
+        header.pack(fill=tk.X)
+
+        welcome_label = tk.Label(header, text="!! WELCOME !!", font=("Helvetica", 30, "bold"), bg='lightblue', fg='black')
+        welcome_label.pack(pady=1)
+
+        # Main area with canvas
+        self.main_area = tk.Canvas(self.frame, highlightthickness=0)
+        self.main_area.pack(fill=tk.BOTH, expand=True)
+
+        self.original_bg_image = Image.open("Picture3.jpg")
+
+        self.skip_button = tk.Button(self.main_area, text="Skip", command=self.on_finish, bg="lightgray", width=12, height=2, font=("Helvetica", 16, "bold"))
+        self.next_button = tk.Button(self.main_area, text="Next", command=self.next_slide, bg="lightblue", width=12, height=2, font=("Helvetica", 16, "bold"))
+
+        self.main_area.bind("<Configure>", self.resize_background)
+
+
+
+    def resize_background(self, event):
+        canvas_width = event.width
+        canvas_height = event.height
+
+        resized_bg = self.original_bg_image.resize((canvas_width, canvas_height), Image.Resampling.LANCZOS)
+        self.bg_photo = ImageTk.PhotoImage(resized_bg)
+
+        self.main_area.delete("all")
+        self.main_area.create_image(0, 0, image=self.bg_photo, anchor='nw')
+
+        # Display instruction text in center top
+        instruction_text = "👉 To learn about the software and instructions, press Next.\n👉 Or press Skip to dive straight into annotating!"
+        self.main_area.create_text(canvas_width // 2, 120, text=instruction_text, font=("Helvetica", 18, "bold"), fill="white", justify="left")
+
+        # Create arrows
+        # Arrow to Skip (bottom-left)
+        # self.main_area.create_line(150, canvas_height - 120, 100, canvas_height - 80, arrow=tk.LAST, width=3, fill="yellow")
+        # self.main_area.create_text(170, canvas_height - 140, text="Skip →", font=("Helvetica", 14, "bold"), fill="yellow")
+
+        # # Arrow to Next (bottom-right)
+        # self.main_area.create_line(canvas_width - 150, canvas_height - 120, canvas_width - 100, canvas_height - 80, arrow=tk.LAST, width=3, fill="yellow")
+        # self.main_area.create_text(canvas_width - 170, canvas_height - 140, text="← Next", font=("Helvetica", 14, "bold"), fill="yellow")
+
+        # Place buttons
+        self.main_area.create_window(100, canvas_height - 40, window=self.skip_button)
+        self.main_area.create_window(canvas_width - 100, canvas_height - 40, window=self.next_button)
+
+    def show_instruction_screen(self):
+        self.clear_frame()
+
+        # Top navy blue header
+        header = tk.Frame(self.frame, bg='lightblue', height=80)
+        header.pack(fill=tk.X)
+
+        about_label = tk.Label(header, text="ℹ️ About", font=("Helvetica", 30, "bold"),bg='lightblue', fg='black')
+        about_label.pack(pady=20)
+
+        # Main area with canvas
+        self.main_area = tk.Canvas(self.frame, highlightthickness=0, bg='lightgray')
+        self.main_area.pack(fill=tk.BOTH, expand=True)
+
+        self.skip_button = tk.Button(self.main_area, text="Back", command=self.prev_slide, bg="lightblue", width=12, height=2, font=("Helvetica", 16, "bold"))
+        self.next_button = tk.Button(self.main_area, text="Next", command=self.next_slide, bg="lightblue", width=12, height=2, font=("Helvetica", 16, "bold"))
+
+        self.main_area.bind("<Configure>", self.resize_instruction_screen)
+
+    def resize_instruction_screen(self, event):
+        canvas_width = event.width
+        canvas_height = event.height
+
+        self.main_area.delete("all")
+
+        # About section
+        about_text = (
+            "An-Augmenter is a user-friendly software designed to simplify image annotation\n"
+            "and augmentation for AI/ML projects. It allows quick, intuitive drawing,\n"
+            "class labeling, and instant augmentation for better dataset preparation."
+        )
+        self.main_area.create_text(
+            canvas_width // 2, 100,
+            text=about_text,
+            font=("Helvetica", 16),
+            fill="black",
+            justify="left"
+        )
+
+        # Instructions title
+        self.main_area.create_text(
+            canvas_width // 2, 250,
+            text="📝 Instructions:",
+            font=("Helvetica", 20, "bold"),
+            fill="black"
+        )
+
+        # Placeholder for instruction points (you can fill them later)
+        instruction_placeholder = (
+            "1. Load image directory and class names prior to the start of annotating.\n"
+            "2. Select mode gives the provision to choose the class you want to label.\n"
+            "3. Switch to Draw Mode in order to start annotating.\n"
+            "4. Annotations get saved at the same time as the bounding box creation in the same directory.\n"
+            "5. Annotations can be deleted using delete bounding box feature given in the GUI.\n"
+            "6. Augment images with rotation, flipping, etc. by clicking on the augment button.\n"
+            "7. In order to save the augmented images location can be provided separately.\n"
+            "8. Click 'Next' for a better understanding of the software with the workflow, otherwise press 'Back' \n"
+            "    to go back to the main window."
+        )
+        self.main_area.create_text(
+            canvas_width // 2, 400,
+            text=instruction_placeholder,
+            font=("Helvetica", 16),
+            fill="black",
+            justify="left"
+        )
+
+        # Place Back and Next buttons
+        self.main_area.create_window(100, canvas_height - 40, window=self.skip_button)
+        self.main_area.create_window(canvas_width - 100, canvas_height - 40, window=self.next_button)
+
+
+    def show_workflow_screen(self):
+        self.clear_frame()
+
+        # Top header
+        header = tk.Frame(self.frame, bg='lightblue', height=80)
+        header.pack(fill=tk.X)
+
+        title_label = tk.Label(header, text="🔄 Workflow Overview", font=("Helvetica", 30, "bold"), bg='lightblue', fg='black')
+        title_label.pack(pady=20)
+
+        # Main content area (canvas to allow absolute placement)
+        self.content_area = tk.Canvas(self.frame, bg='white', highlightthickness=0)
+        self.content_area.pack(fill=tk.BOTH, expand=True)
+
+        # Load workflow image
+        self.original_workflow_image = Image.open("workflow.jpg")  # Replace with your real image
+        self.workflow_img_label = tk.Label(self.content_area, bg='white')
+        self.image_window = self.content_area.create_window(0, 0, window=self.workflow_img_label, anchor="n")
+
+        # Link label
+        self.video_link = tk.Label(
+            self.content_area, text="Click here to watch the tutorial video",
+            font=("Helvetica", 16, "underline"), fg="blue", cursor="hand2", bg='white'
+        )
+        self.link_window = self.content_area.create_window(0, 0, window=self.video_link, anchor="n")
+
+        self.video_link.bind("<Button-1>", lambda e: webbrowser.open_new(f"http://localhost:{self.PORT}/tutorial_video.mp4"))
+        self.video_link.bind("<Enter>", lambda e: self.video_link.config(fg="darkblue"))
+        self.video_link.bind("<Leave>", lambda e: self.video_link.config(fg="blue"))
+
+        # Buttons
+        self.back_button = tk.Button(self.content_area, text="Back", command=self.prev_slide, bg="lightblue",
+                                    width=12, height=2, font=("Helvetica", 16, "bold"))
+        self.start_button = tk.Button(self.content_area, text="Start Annotating", command=self.on_finish, bg="lightgreen",
+                                    width=16, height=2, font=("Helvetica", 16, "bold"))
+
+        # Placeholders for button windows
+        self.back_button_window = self.content_area.create_window(0, 0, window=self.back_button)
+        self.start_button_window = self.content_area.create_window(0, 0, window=self.start_button)
+
+        # Bind resize to adjust all positions
+        self.content_area.bind("<Configure>", self.resize_workflow_image)
+
+
+    def resize_workflow_image(self, event):
+        canvas_width = event.width
+        canvas_height = event.height
+
+        max_width = canvas_width - 100  # Margin
+        max_height = 550                # Max height for image
+
+        img_ratio = self.original_workflow_image.width / self.original_workflow_image.height
+        if max_width / img_ratio <= max_height:
+            resized_width = max_width
+            resized_height = int(max_width / img_ratio)
+        else:
+            resized_height = max_height
+            resized_width = int(max_height * img_ratio)
+
+        resized_img = self.original_workflow_image.resize((resized_width, resized_height))
+        self.workflow_tk_img = ImageTk.PhotoImage(resized_img)
+        self.workflow_img_label.config(image=self.workflow_tk_img)
+        self.workflow_img_label.image = self.workflow_tk_img  # Keep reference
+
+        # Reposition the image in canvas
+        self.content_area.coords(self.image_window, canvas_width // 2, 60)
+
+        # Reposition the link below image
+        self.content_area.coords(self.link_window, canvas_width // 2, 60 + resized_height + 20)
+
+        # Reposition Back and Start buttons near bottom
+        self.content_area.coords(self.back_button_window, 100, canvas_height - 40)
+        self.content_area.coords(self.start_button_window, canvas_width - 150, canvas_height - 40)
+
+
+
+
+
+
+    def add_nav_buttons(self, finish=False):
+        nav = tk.Frame(self.frame, bg='white')
+        nav.pack(pady=20)
+        tk.Button(nav, text="Back", command=self.prev_slide, bg="lightgray").pack(side=tk.LEFT, padx=10)
+        if finish:
+            tk.Button(nav, text="Start Annotating", command=self.on_finish, bg="lightgreen").pack(side=tk.LEFT, padx=10)
+        else:
+            tk.Button(nav, text="Next", command=self.next_slide, bg="lightblue").pack(side=tk.LEFT, padx=10)
+
+    def next_slide(self):
+        self.slide += 1
+        if self.slide < len(self.slides):
+            self.slides[self.slide]()
+        else:
+            self.on_finish()
+
+    def prev_slide(self):
+        if self.slide > 0:
+            self.slide -= 1
+            self.slides[self.slide]()
+
+class ImageAnnotator:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("An-Augmenter")
+        self.root.configure(bg='navy')
+
+        # Initialize variables
+        self.image_folder = ""
+        self.class_file = ""
+        self.classes = []
+        self.colors = []
+        self.current_image_index = 0
+        self.images = []
+        self.annotations = defaultdict(list)
+        self.drawing = False
+        self.start_x = None
+        self.start_y = None
+        self.rect = None
+        self.current_class = None
+        self.scale_factor = 1.0
+        self.original_image = None
+        self.current_bbox_ids = []
+        self.mode = "select"
+        self.guidelines = []
+        self.selected_annotation_index = None
+        self.x_offset = 0
+        self.y_offset = 0
+        self.augmenter = ImageAugmenter()
+
+        # Setup GUI
+        self.setup_ui()
+
+        # Ask for paths if not provided
+        self.ask_for_paths()
+
+    def setup_ui(self):
+        # Left panel for controls
+        left_panel = tk.Frame(self.root, bg='navy', width=200)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y)
+
+        # Folder and class file buttons
+        tk.Button(left_panel, text="Open Image Folder", command=self.open_image_folder,
+                 bg='lightblue', fg='navy').pack(pady=5, fill=tk.X)
+        tk.Button(left_panel, text="Open Class File", command=self.open_class_file,
+                 bg='lightblue', fg='navy').pack(pady=5, fill=tk.X)
+
+        # Navigation buttons
+        nav_frame = tk.Frame(left_panel, bg='navy')
+        nav_frame.pack(pady=10, fill=tk.X)
+
+        nav_frame.columnconfigure(0, weight=1)
+        nav_frame.columnconfigure(1, weight=1)
+
+        tk.Button(nav_frame, text="Previous", command=self.prev_image,
+                bg='lightblue', fg='navy').grid(row=0, column=0, sticky="ew")
+
+        tk.Button(nav_frame, text="Next", command=self.next_image,
+                bg='lightblue', fg='navy').grid(row=0, column=1, sticky="ew")
+        # Mode selection
+        mode_frame = tk.Frame(left_panel, bg='navy')
+        mode_frame.pack(pady=10)
+        self.mode_var = tk.StringVar(value="select")
+        tk.Radiobutton(mode_frame, text="Select Mode", variable=self.mode_var,
+                      value="select", command=self.set_select_mode, bg='navy', fg='white',
+                      selectcolor='navy', activebackground='navy').pack(anchor=tk.W)
+        tk.Radiobutton(mode_frame, text="Draw Mode", variable=self.mode_var,
+                      value="draw", command=self.set_draw_mode, bg='navy', fg='white',
+                      selectcolor='navy', activebackground='navy').pack(anchor=tk.W)
+
+        # Class selection
+        self.class_var = tk.StringVar()
+        self.class_dropdown = tk.OptionMenu(left_panel, self.class_var, "")
+        self.class_dropdown.pack(pady=10, fill=tk.X)
+        self.class_var.set("Select Class")
+
+        # Draw button
+        tk.Button(left_panel, text="Draw Bounding Box", command=self.set_draw_mode,
+                 bg='lightblue', fg='navy').pack(pady=5, fill=tk.X)
+
+        # Delete button
+        tk.Button(left_panel, text="Delete Selected", command=self.delete_selected,
+                 bg='lightblue', fg='navy').pack(pady=5, fill=tk.X)
+
+        # Annotations list
+        tk.Label(left_panel, text="Annotations:", bg='navy', fg='white').pack(pady=5)
+        self.annotations_list = tk.Listbox(left_panel, height=10)
+        self.annotations_list.pack(fill=tk.BOTH, expand=True)
+        self.annotations_list.bind('<<ListboxSelect>>', self.on_annotation_select)
+
+        tk.Button(left_panel, text="Augment Images", command=self.setup_augmentation_ui,
+          bg='lightblue', fg='navy').pack(pady=5, fill=tk.X)
+
+        # Image display with scrollbars
+        self.image_frame = tk.Frame(self.root, bg='gray')
+        self.image_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        self.canvas = tk.Canvas(self.image_frame, bg='gray', cursor="crosshair")
+        self.h_scroll = tk.Scrollbar(self.image_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
+        self.v_scroll = tk.Scrollbar(self.image_frame, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.canvas.configure(xscrollcommand=self.h_scroll.set, yscrollcommand=self.v_scroll.set)
+
+        self.h_scroll.pack(side=tk.BOTTOM, fill=tk.X)
+        self.v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Bind mouse events
+        self.canvas.bind("<ButtonPress-1>", self.on_mouse_press)
+        self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
+        self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
+        self.canvas.bind("<Motion>", self.draw_guidelines)
+        self.root.bind("<Configure>", self.on_window_resize)
+
+    def on_window_resize(self, event):
+        if self.original_image:
+            self.scale_image_to_fit()
+
+    def set_select_mode(self):
+        self.mode = "select"
+        self.canvas.config(cursor="crosshair")
+        self.clear_guidelines()
+
+    def set_draw_mode(self):
+        if not self.class_var.get() or self.class_var.get() == "Select Class":
+            messagebox.showerror("Error", "Please select a class first!")
+            self.mode_var.set("select")
+            return
+        self.mode = "draw"
+        self.current_class = self.class_var.get()
+        self.canvas.config(cursor="crosshair")
+
+    def draw_guidelines(self, event):
+        self.clear_guidelines()
+
+        x = self.canvas.canvasx(event.x)
+        y = self.canvas.canvasy(event.y)
+
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+
+        vert_guideline = self.canvas.create_line(
+            x, 0, x, canvas_height,
+            fill="red", dash=(2, 2), width=1, tags="guideline"
+        )
+
+        horiz_guideline = self.canvas.create_line(
+            0, y, canvas_width, y,
+            fill="red", dash=(2, 2), width=1, tags="guideline"
+        )
+
+        self.guidelines = [vert_guideline, horiz_guideline]
+
+    def clear_guidelines(self):
+        for guideline in self.guidelines:
+            self.canvas.delete(guideline)
+        self.guidelines = []
+
+    def ask_for_paths(self):
+        self.image_folder = filedialog.askdirectory(title="Select Image Folder")
+        if not self.image_folder:
+            messagebox.showerror("Error", "No image folder selected!")
+            return
+
+        self.class_file = filedialog.askopenfilename(
+            title="Select Class File",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+        )
+
+        if self.class_file:
+            self.load_classes()
+        else:
+            create = messagebox.askyesno("Class File", "No class file selected. Create new one?")
+            if create:
+                self.create_class_file()
+
+        self.load_images()
+
+    def open_image_folder(self):
+        self.image_folder = filedialog.askdirectory(title="Select Image Folder")
+        if self.image_folder:
+            self.load_images()
+
+    def open_class_file(self):
+        self.class_file = filedialog.askopenfilename(
+            title="Select Class File",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+        )
+        if self.class_file:
+            self.load_classes()
+
+    def create_class_file(self):
+        classes = simpledialog.askstring("Create Class File", "Enter class names separated by commas:")
+        if classes:
+            self.classes = [c.strip() for c in classes.split(",")]
+            self.class_file = os.path.join(self.image_folder, "classes.txt")
+            with open(self.class_file, 'w') as f:
+                f.write("\n".join(self.classes))
+
+            self.generate_colors()
+            self.update_class_dropdown()
+
+            messagebox.showinfo("Success", f"Class file created at {self.class_file}")
+
+    def load_classes(self):
+        try:
+            with open(self.class_file, 'r') as f:
+                self.classes = [line.strip() for line in f.readlines() if line.strip()]
+
+            self.generate_colors()
+            self.update_class_dropdown()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load class file: {str(e)}")
+
+    def generate_colors(self):
+        self.colors = []
+        for i in range(len(self.classes)):
+            hue = i / len(self.classes)
+            rgb = colorsys.hsv_to_rgb(hue, 1, 1)
+            self.colors.append("#%02x%02x%02x" % (int(rgb[0]*255), int(rgb[1]*255), int(rgb[2]*255)))
+
+    def update_class_dropdown(self):
+        menu = self.class_dropdown["menu"]
+        menu.delete(0, "end")
+
+        for cls in self.classes:
+            menu.add_command(label=cls, command=lambda v=cls: self.class_var.set(v))
+
+        if self.classes:
+            self.class_var.set(self.classes[0])
+
+    def load_images(self):
+        if not self.image_folder:
+            return
+
+        extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
+        self.images = [
+            os.path.join(self.image_folder, f)
+            for f in os.listdir(self.image_folder)
+            if f.lower().endswith(extensions)
+        ]
+
+        if not self.images:
+            messagebox.showerror("Error", "No images found in the selected folder!")
+            return
+
+        self.current_image_index = 0
+        self.load_current_image()
+
+    def load_current_image(self):
+        if not self.images or self.current_image_index >= len(self.images):
+            return
+
+        image_path = self.images[self.current_image_index]
+
+        # Load image and handle orientation properly
+        self.original_image = Image.open(image_path)
+
+        # Apply EXIF transpose to correct orientation without rotating
+        try:
+            from PIL import ImageOps
+            self.original_image = ImageOps.exif_transpose(self.original_image)
+        except (AttributeError, ImportError, KeyError):
+            # Fallback if EXIF handling fails
+            pass
+
+        # Load annotations if they exist
+        self.load_annotations_for_current_image()
+
+        self.scale_image_to_fit()
+
+        # Load annotations if they exist
+        self.load_annotations_for_current_image()
+
+        # Update annotations list
+        self.update_annotations_list()
+
+        # Update window title
+        self.root.title(f"Image Annotation Tool - {os.path.basename(image_path)} ({self.current_image_index+1}/{len(self.images)})")
+
+    def scale_image_to_fit(self):
+        if not self.original_image:
+            return
+
+        canvas_width = self.image_frame.winfo_width() - 20
+        canvas_height = self.image_frame.winfo_height() - 20
+
+        if canvas_width <= 0 or canvas_height <= 0:
+            return
+
+        img_width, img_height = self.original_image.size
+        width_ratio = canvas_width / img_width
+        height_ratio = canvas_height / img_height
+        self.scale_factor = min(width_ratio, height_ratio)
+
+        new_width = int(img_width * self.scale_factor)
+        new_height = int(img_height * self.scale_factor)
+        self.current_image = self.original_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        self.tk_image = ImageTk.PhotoImage(self.current_image)
+
+        # Calculate offsets for centering
+        self.x_offset = (canvas_width - new_width) / 2
+        self.y_offset = (canvas_height - new_height) / 2
+
+        self.canvas.delete("all")
+        self.canvas.config(scrollregion=(0, 0, new_width, new_height))
+        self.canvas.create_image(self.x_offset, self.y_offset, anchor=tk.NW, image=self.tk_image)
+
+        self.draw_existing_annotations()
+
+    def load_annotations_for_current_image(self):
+        image_path = self.images[self.current_image_index]
+        annotation_path = os.path.splitext(image_path)[0] + ".txt"
+
+        self.annotations[image_path] = []
+        self.current_bbox_ids = []
+        self.selected_annotation_index = None
+
+        if os.path.exists(annotation_path):
+            with open(annotation_path, 'r') as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) >= 5:
+                        class_id = int(parts[0])
+                        x_center = float(parts[1])
+                        y_center = float(parts[2])
+                        width = float(parts[3])
+                        height = float(parts[4])
+
+                        img_width, img_height = self.original_image.size
+                        x1 = (x_center - width/2) * img_width
+                        y1 = (y_center - height/2) * img_height
+                        x2 = (x_center + width/2) * img_width
+                        y2 = (y_center + height/2) * img_height
+
+                        self.annotations[image_path].append({
+                            "class_id": class_id,
+                            "class_name": self.classes[class_id],
+                            "x1": x1,
+                            "y1": y1,
+                            "x2": x2,
+                            "y2": y2
+                        })
+
+    def draw_existing_annotations(self):
+        if not self.original_image:
+            return
+
+        image_path = self.images[self.current_image_index]
+        self.current_bbox_ids = []
+
+        for i, ann in enumerate(self.annotations[image_path]):
+            x1 = ann["x1"] * self.scale_factor + self.x_offset
+            y1 = ann["y1"] * self.scale_factor + self.y_offset
+            x2 = ann["x2"] * self.scale_factor + self.x_offset
+            y2 = ann["y2"] * self.scale_factor + self.y_offset
+
+            color = self.colors[ann["class_id"]]
+            rect_id = self.canvas.create_rectangle(
+                x1, y1, x2, y2,
+                outline=color, width=2, tags="annotation"
+            )
+            text_id = self.canvas.create_text(
+                x1, y1,
+                text=ann["class_name"],
+                anchor=tk.NW, fill=color, tags="annotation"
+            )
+            self.current_bbox_ids.append((rect_id, text_id, ann))
+
+            if i == self.selected_annotation_index:
+                self.canvas.itemconfig(rect_id, width=4)
+                self.canvas.itemconfig(text_id, fill="white")
+
+    def update_annotations_list(self):
+        self.annotations_list.delete(0, tk.END)
+        image_path = self.images[self.current_image_index]
+        for i, ann in enumerate(self.annotations[image_path]):
+            self.annotations_list.insert(tk.END,
+                f"{i+1}: {ann['class_name']} ({ann['x1']:.1f}, {ann['y1']:.1f}) - ({ann['x2']:.1f}, {ann['y2']:.1f})")
+
+        if self.selected_annotation_index is not None and self.selected_annotation_index < self.annotations_list.size():
+            self.annotations_list.selection_set(self.selected_annotation_index)
+
+    def on_annotation_select(self, event):
+        if not self.annotations_list.curselection():
+            self.selected_annotation_index = None
+            return
+
+        selected_index = self.annotations_list.curselection()[0]
+        image_path = self.images[self.current_image_index]
+
+        if selected_index < len(self.annotations[image_path]):
+            self.selected_annotation_index = selected_index
+            self.highlight_annotation(selected_index)
+
+    def highlight_annotation(self, index):
+        for bbox_id in self.current_bbox_ids:
+            self.canvas.itemconfig(bbox_id[0], width=2)
+            self.canvas.itemconfig(bbox_id[1], fill=self.colors[bbox_id[2]["class_id"]])
+
+        if index < len(self.current_bbox_ids):
+            self.canvas.itemconfig(self.current_bbox_ids[index][0], width=4)
+            self.canvas.itemconfig(self.current_bbox_ids[index][1], fill="white")
+            self.canvas.tag_raise(self.current_bbox_ids[index][0])
+            self.canvas.tag_raise(self.current_bbox_ids[index][1])
+
+    def delete_selected(self):
+        if self.selected_annotation_index is None:
+            messagebox.showwarning("Warning", "No annotation selected to delete!")
+            return
+
+        image_path = self.images[self.current_image_index]
+
+        if self.selected_annotation_index < len(self.annotations[image_path]):
+            del self.annotations[image_path][self.selected_annotation_index]
+            self.selected_annotation_index = None
+            self.load_current_image()
+            self.update_annotations_list()
+
+    def prev_image(self):
+        if self.current_image_index > 0:
+            self.save_current_annotations(only_if_annotations=True)
+            self.current_image_index -= 1
+            self.load_current_image()
+
+    def next_image(self):
+        if self.current_image_index < len(self.images) - 1:
+            self.save_current_annotations(only_if_annotations=True)
+            self.current_image_index += 1
+            self.load_current_image()
+        else:
+            messagebox.showinfo("Info", "You've reached the last image.")
+
+    def on_mouse_press(self, event):
+        if self.mode == "draw":
+            if not self.class_var.get() or self.class_var.get() == "Select Class":
+                messagebox.showerror("Error", "Please select a class first!")
+                self.mode_var.set("select")
+                return
+
+            self.drawing = True
+            self.start_x = self.canvas.canvasx(event.x) - self.x_offset
+            self.start_y = self.canvas.canvasy(event.y) - self.y_offset
+            self.rect = self.canvas.create_rectangle(
+                self.start_x + self.x_offset,
+                self.start_y + self.y_offset,
+                self.start_x + self.x_offset,
+                self.start_y + self.y_offset,
+                outline=self.colors[self.classes.index(self.current_class)], width=2
+            )
+        elif self.mode == "select":
+            x = self.canvas.canvasx(event.x)
+            y = self.canvas.canvasy(event.y)
+
+            for i, (rect_id, text_id, ann) in enumerate(self.current_bbox_ids):
+                coords = self.canvas.coords(rect_id)
+                if (coords[0] <= x <= coords[2] and coords[1] <= y <= coords[3]):
+                    self.selected_annotation_index = i
+                    self.annotations_list.selection_clear(0, tk.END)
+                    self.annotations_list.selection_set(i)
+                    self.highlight_annotation(i)
+                    break
+
+    def on_mouse_drag(self, event):
+        if self.drawing and self.rect:
+            x = self.canvas.canvasx(event.x) - self.x_offset
+            y = self.canvas.canvasy(event.y) - self.y_offset
+            self.canvas.coords(
+                self.rect,
+                self.start_x + self.x_offset,
+                self.start_y + self.y_offset,
+                x + self.x_offset,
+                y + self.y_offset
+            )
+
+    def on_mouse_release(self, event):
+        if self.drawing and self.rect:
+            self.drawing = False
+            end_x = self.canvas.canvasx(event.x) - self.x_offset
+            end_y = self.canvas.canvasy(event.y) - self.y_offset
+
+            # Convert back to original image coordinates
+            orig_x1 = self.start_x / self.scale_factor
+            orig_y1 = self.start_y / self.scale_factor
+            orig_x2 = end_x / self.scale_factor
+            orig_y2 = end_y / self.scale_factor
+
+            # Ensure coordinates are within image bounds
+            img_width, img_height = self.original_image.size
+            x1 = max(0, min(orig_x1, orig_x2))
+            y1 = max(0, min(orig_y1, orig_y2))
+            x2 = min(img_width, max(orig_x1, orig_x2))
+            y2 = min(img_height, max(orig_y1, orig_y2))
+
+            if abs(x2 - x1) > 5 and abs(y2 - y1) > 5:
+                class_id = self.classes.index(self.current_class)
+                image_path = self.images[self.current_image_index]
+                self.annotations[image_path].append({
+                    "class_id": class_id,
+                    "class_name": self.current_class,
+                    "x1": x1,
+                    "y1": y1,
+                    "x2": x2,
+                    "y2": y2
+                })
+
+                self.update_annotations_list()
+                self.draw_existing_annotations()
+
+            self.canvas.delete(self.rect)
+            self.rect = None
+
+            self.mode_var.set("select")
+            self.mode = "select"
+
+    def save_current_annotations(self, only_if_annotations=False):
+        if not self.images or self.current_image_index >= len(self.images):
+            return
+
+        image_path = self.images[self.current_image_index]
+        annotation_path = os.path.splitext(image_path)[0] + ".txt"
+
+        if only_if_annotations and len(self.annotations[image_path]) == 0:
+            if os.path.exists(annotation_path):
+                os.remove(annotation_path)
+            return
+
+        yolo_annotations = []
+        img_width, img_height = self.original_image.size
+
+        for ann in self.annotations[image_path]:
+            x_center = ((ann["x1"] + ann["x2"]) / 2) / img_width
+            y_center = ((ann["y1"] + ann["y2"]) / 2) / img_height
+            width = (ann["x2"] - ann["x1"]) / img_width
+            height = (ann["y2"] - ann["y1"]) / img_height
+
+            yolo_annotations.append(f"{ann['class_id']} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}")
+
+        if yolo_annotations or os.path.exists(annotation_path):
+            with open(annotation_path, 'w') as f:
+                f.write("\n".join(yolo_annotations))
+
+    def setup_augmentation_ui(self):
+        """Create the augmentation controls"""
+        self.augmentation_panel = tk.Toplevel(self.root)
+        self.augmentation_panel.title("Augmentation Settings")
+        self.augmentation_panel.geometry("400x600")
+
+        self.aug_params = {}
+        self.aug_widgets = {}
+
+        row = 0
+        for aug_name, config in self.augmenter.augmentations.items():
+            # Create checkbox for each augmentation
+            var = tk.BooleanVar(value=False)
+            cb = tk.Checkbutton(self.augmentation_panel, text=aug_name, variable=var)
+            cb.grid(row=row, column=0, sticky="w")
+
+            # Create slider for parameters if needed
+            if "range" in config:
+                min_val, max_val = config["range"]
+                if isinstance(min_val, tuple):  # For tuple parameters like blur
+                    default_val = config["default"][0]
+                    scale = tk.Scale(self.augmentation_panel, from_=min_val[0], to=max_val[0],
+                                    orient=tk.HORIZONTAL, label=f"{aug_name} value")
+                    scale.set(default_val)
+                    scale.grid(row=row, column=1)
+                    self.aug_widgets[f"{aug_name}_value"] = scale
+                else:  # For single value parameters
+                    scale = tk.Scale(self.augmentation_panel, from_=min_val, to=max_val,
+                                    orient=tk.HORIZONTAL, label=f"{aug_name} value")
+                    scale.set(config["default"])
+                    scale.grid(row=row, column=1)
+                    self.aug_widgets[f"{aug_name}_value"] = scale
+
+            self.aug_widgets[aug_name] = var
+            row += 1
+
+        # Add apply button
+        tk.Button(self.augmentation_panel, text="Apply Augmentations",
+                command=self.apply_augmentations).grid(row=row, columnspan=2)
+
+    # Add this method to your ImageAnnotator class:
+    def setup_augmentation_ui(self):
+        """Create the augmentation controls with proper sliders"""
+        self.augmentation_panel = tk.Toplevel(self.root)
+        self.augmentation_panel.title("Augmentation Settings")
+        self.augmentation_panel.geometry("500x800")
+
+        self.aug_params = {}
+        self.aug_widgets = {}
+
+        # Create a canvas and scrollbar for the panel
+        canvas = tk.Canvas(self.augmentation_panel)
+        scrollbar = tk.Scrollbar(self.augmentation_panel, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        row = 0
+        for aug_name, config in self.augmenter.augmentations.items():
+            # Frame for each augmentation control
+            frame = tk.Frame(scrollable_frame)
+            frame.grid(row=row, column=0, sticky="ew", padx=5, pady=5)
+
+            # Checkbox for enabling the augmentation
+            var = tk.BooleanVar(value=False)
+            cb = tk.Checkbutton(frame, text=aug_name, variable=var)
+            cb.pack(side="left", anchor="w")
+            self.aug_widgets[aug_name] = var
+
+            # Slider for parameters if needed
+            if "range" in config:
+                min_val, max_val = config["range"]
+                default_val = config["default"]
+
+                # Create appropriate slider based on parameter type
+                if isinstance(min_val, tuple):  # For tuple parameters like blur
+                    # First value slider
+                    frame_val1 = tk.Frame(scrollable_frame)
+                    frame_val1.grid(row=row+1, column=0, sticky="ew", padx=20)
+
+                    lbl1 = tk.Label(frame_val1, text=f"{aug_name} value 1")
+                    lbl1.pack(side="left")
+
+                    scale1 = tk.Scale(
+                        frame_val1,
+                        from_=min_val[0],
+                        to=max_val[0],
+                        resolution=0.1 if isinstance(default_val[0], float) else 1,
+                        orient=tk.HORIZONTAL
+                    )
+                    scale1.set(default_val[0])
+                    scale1.pack(side="left", fill="x", expand=True)
+                    self.aug_widgets[f"{aug_name}_value1"] = scale1
+
+                    # Second value slider
+                    frame_val2 = tk.Frame(scrollable_frame)
+                    frame_val2.grid(row=row+2, column=0, sticky="ew", padx=20)
+
+                    lbl2 = tk.Label(frame_val2, text=f"{aug_name} value 2")
+                    lbl2.pack(side="left")
+
+                    scale2 = tk.Scale(
+                        frame_val2,
+                        from_=min_val[1],
+                        to=max_val[1],
+                        resolution=0.1 if isinstance(default_val[1], float) else 1,
+                        orient=tk.HORIZONTAL
+                    )
+                    scale2.set(default_val[1])
+                    scale2.pack(side="left", fill="x", expand=True)
+                    self.aug_widgets[f"{aug_name}_value2"] = scale2
+
+                    row += 2
+                else:  # For single value parameters
+                    frame_val = tk.Frame(scrollable_frame)
+                    frame_val.grid(row=row+1, column=0, sticky="ew", padx=20)
+
+                    lbl = tk.Label(frame_val, text=f"{aug_name} value")
+                    lbl.pack(side="left")
+
+                    scale = tk.Scale(
+                        frame_val,
+                        from_=min_val,
+                        to=max_val,
+                        resolution=0.1 if isinstance(default_val, float) else 1,
+                        orient=tk.HORIZONTAL
+                    )
+                    scale.set(default_val)
+                    scale.pack(side="left", fill="x", expand=True)
+                    self.aug_widgets[f"{aug_name}_value"] = scale
+
+                    row += 1
+
+            row += 1
+
+        # Add apply button at the bottom
+        btn_frame = tk.Frame(scrollable_frame)
+        btn_frame.grid(row=row, column=0, pady=10)
+
+        tk.Button(
+            btn_frame,
+            text="Apply Augmentations",
+            command=self.apply_augmentations
+        ).pack()
+
+    def apply_augmentations(self):
+        """Apply selected augmentations to all images in folder"""
+        # Get output directory
+        output_dir = filedialog.askdirectory(title="Select Output Directory for Augmented Images")
+        if not output_dir:
+            return
+
+        # Collect parameters
+        params = {}
+        for aug_name in self.augmenter.augmentations:
+            if self.aug_widgets[aug_name].get():
+                params[aug_name] = True
+                config = self.augmenter.augmentations[aug_name]
+
+                if "range" in config:
+                    if isinstance(config["range"][0], tuple):  # Tuple parameters
+                        val1 = self.aug_widgets[f"{aug_name}_value1"].get()
+                        val2 = self.aug_widgets[f"{aug_name}_value2"].get()
+                        params[f"{aug_name}_value"] = (val1, val2)
+                    else:  # Single value parameters
+                        val = self.aug_widgets[f"{aug_name}_value"].get()
+                        params[f"{aug_name}_value"] = val
+
+        if not params:
+            messagebox.showwarning("Warning", "No augmentations selected!")
+            return
+
+        # Process all images
+        for image_path in self.images:
+            # Load image and correct orientation
+            img = Image.open(image_path)
+            try:
+                img = ImageOps.exif_transpose(img)
+            except Exception as e:
+                print(f"Warning: Failed to transpose EXIF for {image_path}: {e}")
+
+            width, height = img.size
+            print(f"Image dimensions: {width}x{height}")
+
+            # Check for annotations
+            annotation_path = os.path.splitext(image_path)[0] + ".txt"
+            bboxes = None
+            if os.path.exists(annotation_path):
+                bboxes = self.augmenter.read_yolo_annotations(annotation_path, width, height)
+
+            # Apply augmentations
+            self.augmenter.apply_augmentations(image_path, output_dir, params, bboxes)
+
+
+        messagebox.showinfo("Success", f"Augmented images saved to {output_dir}")
+        self.augmentation_panel.destroy()
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    root.geometry("1200x800")
+
+    def start_main_gui():
+        for widget in root.winfo_children():
+            widget.destroy()
+        app = ImageAnnotator(root)
+
+    WelcomeScreen(root, start_main_gui)
+    root.mainloop()
