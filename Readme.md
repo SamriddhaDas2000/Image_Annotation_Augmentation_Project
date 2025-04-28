@@ -52,7 +52,7 @@ pip install -r requirements.txt
 ## 🚀 How to Run
 
 ```bash
-python Image_annotater.py
+python Image_annotater_modified.py
 ```
 
 This will launch the GUI automatically.
