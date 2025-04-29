@@ -81,8 +81,8 @@ This will launch the GUI automatically.
    - Click "Augment Images" → Choose transformations like flip, rotate, noise, blur, etc.
    - Save augmented images and updated annotations.
 
-6. **Server for Video Tutorial (Optional)**
-   - A local server (http://localhost:8000) plays your tutorial video.
+6. **Video Tutorial Link**
+   - Click on the link for software demonstration -> (https://drive.google.com/file/d/1XJNHgAtaJI-TmCalsGj5csDTL6A5jbMP/view?usp=sharing).
 
 ---
 
