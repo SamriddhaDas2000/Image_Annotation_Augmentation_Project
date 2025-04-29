@@ -47,6 +47,14 @@ class WelcomeScreen:
     #     self.server_thread = threading.Thread(target=self.start_server, daemon=True)
     #     self.server_thread.start()
 
+    def add_footer(self, parent_frame):
+        footer = tk.Frame(parent_frame, bg='lightblue')
+        footer.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
+
+        tk.Label(footer, text="Version 1.0.0", bg='lightblue', font=("Helvetica", 8, "bold")).pack()
+        tk.Label(footer, text="Created by: Samriddha Das", bg='lightblue', font=("Helvetica", 8, "bold")).pack()
+        tk.Label(footer, text="samriddha.das@ndsu.edu", bg='lightblue', font=("Helvetica", 8, "bold")).pack()
+
     def clear_frame(self):
         for widget in self.frame.winfo_children():
             widget.destroy()
@@ -69,6 +77,8 @@ class WelcomeScreen:
 
         self.skip_button = tk.Button(self.main_area, text="Skip", command=self.on_finish, bg="lightgray", width=12, height=2, font=("Helvetica", 16, "bold"))
         self.next_button = tk.Button(self.main_area, text="Next", command=self.next_slide, bg="lightblue", width=12, height=2, font=("Helvetica", 16, "bold"))
+
+        self.add_footer(self.frame)
 
         self.main_area.bind("<Configure>", self.resize_background)
 
@@ -117,6 +127,8 @@ class WelcomeScreen:
 
         self.skip_button = tk.Button(self.main_area, text="Back", command=self.prev_slide, bg="lightblue", width=12, height=2, font=("Helvetica", 16, "bold"))
         self.next_button = tk.Button(self.main_area, text="Next", command=self.next_slide, bg="lightblue", width=12, height=2, font=("Helvetica", 16, "bold"))
+
+        self.add_footer(self.frame)
 
         self.main_area.bind("<Configure>", self.resize_instruction_screen)
 
@@ -212,6 +224,7 @@ class WelcomeScreen:
         # Placeholders for button windows
         self.back_button_window = self.content_area.create_window(0, 0, window=self.back_button)
         self.start_button_window = self.content_area.create_window(0, 0, window=self.start_button)
+        self.add_footer(self.frame)
 
         # Bind resize to adjust all positions
         self.content_area.bind("<Configure>", self.resize_workflow_image)
@@ -241,7 +254,7 @@ class WelcomeScreen:
         self.content_area.coords(self.image_window, canvas_width // 2, 60)
 
         # Reposition the link below image
-        self.content_area.coords(self.link_window, canvas_width // 2, 60 + resized_height + 20)
+        self.content_area.coords(self.link_window, canvas_width // 2, 60 + resized_height)
 
         # Reposition Back and Start buttons near bottom
         self.content_area.coords(self.back_button_window, 100, canvas_height - 40)
