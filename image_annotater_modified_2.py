@@ -1028,7 +1028,7 @@ class ImageAnnotator:
 
         # --- Format selection for augmentation ---
         format_frame = tk.LabelFrame(scrollable_frame, text="Save Annotation Formats", bg="white", padx=10, pady=5)
-        format_frame.grid(row=row + 1, column=0, sticky="ew", pady=10)
+        format_frame.grid(row=row, column=0, sticky="ew", pady=10)
 
         self.aug_format_vars = {
             "yolo": tk.BooleanVar(value=self.annotation_formats.get("yolo", True)),
@@ -1045,7 +1045,7 @@ class ImageAnnotator:
 
         # Add apply button at the bottom
         btn_frame = tk.Frame(scrollable_frame)
-        btn_frame.grid(row=row, column=0, pady=10)
+        btn_frame.grid(row=row+1, column=0, pady=10)
 
         tk.Button(
             btn_frame,
