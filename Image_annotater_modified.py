@@ -1,5 +1,6 @@
 import os
 import tkinter as tk
+import tkinter.ttk as ttk
 from tkinter import filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk, ImageDraw, ImageOps
 import colorsys
@@ -970,14 +971,13 @@ class ImageAnnotator:
         ).pack()
 
     def apply_augmentations(self):
-        """Apply selected augmentations to all images in folder"""
-        # Get output directory
         output_dir = filedialog.askdirectory(title="Select Output Directory for Augmented Images")
         if not output_dir:
             return
 
-        # Collect parameters
         params = {}
+        aug_multiplier = 0  # Track how many images are generated per input
+
         for aug_name in self.augmenter.augmentations:
             if self.aug_widgets[aug_name].get():
                 params[aug_name] = True
@@ -988,17 +988,42 @@ class ImageAnnotator:
                         val1 = self.aug_widgets[f"{aug_name}_value1"].get()
                         val2 = self.aug_widgets[f"{aug_name}_value2"].get()
                         params[f"{aug_name}_value"] = (val1, val2)
-                    else:  # Single value parameters
+                    else:
                         val = self.aug_widgets[f"{aug_name}_value"].get()
                         params[f"{aug_name}_value"] = val
+
+                aug_multiplier += 1  # Assuming one variant per augmentation
 
         if not params:
             messagebox.showwarning("Warning", "No augmentations selected!")
             return
 
-        # Process all images
-        for image_path in self.images:
-            # Load image and correct orientation
+        # ------------------- Progress Window -------------------
+        progress_win = tk.Toplevel(self.root)
+        progress_win.title("Augmenting Images")
+        progress_win.geometry("450x150")
+        tk.Label(progress_win, text="Augmenting images...").pack(pady=5)
+
+        bar_var = tk.DoubleVar()
+        progress_bar = ttk.Progressbar(progress_win, maximum=100, length=350, variable=bar_var)
+        progress_bar.pack(pady=5)
+
+        label_image = tk.Label(progress_win, text="")
+        label_image.pack()
+
+        label_aug = tk.Label(progress_win, text="")
+        label_aug.pack()
+
+        self.root.update_idletasks()
+
+        total_images = len(self.images)
+        total_aug_images = total_images * aug_multiplier
+        current_aug_count = 0
+
+        for img_idx, image_path in enumerate(self.images, start=1):
+            label_image.config(text=f"Processing image {img_idx} of {total_images}")
+            self.root.update_idletasks()
+
             img = Image.open(image_path)
             try:
                 img = ImageOps.exif_transpose(img)
@@ -1006,20 +1031,33 @@ class ImageAnnotator:
                 print(f"Warning: Failed to transpose EXIF for {image_path}: {e}")
 
             width, height = img.size
-            print(f"Image dimensions: {width}x{height}")
-
-            # Check for annotations
             annotation_path = os.path.splitext(image_path)[0] + ".txt"
             bboxes = None
             if os.path.exists(annotation_path):
                 bboxes = self.augmenter.read_yolo_annotations(annotation_path, width, height)
 
-            # Apply augmentations
-            self.augmenter.apply_augmentations(image_path, output_dir, params, bboxes)
+            # Apply augmentations (you may modify this to return the number of generated images)
+            generated_paths = self.augmenter.apply_augmentations(image_path, output_dir, params, bboxes)
 
+            # Count actual images generated
+            if isinstance(generated_paths, list):
+                generated_count = len(generated_paths)
+            else:
+                generated_count = aug_multiplier  # fallback estimate
 
-        messagebox.showinfo("Success", f"Augmented images saved to {output_dir}")
+            for i in range(generated_count):
+                current_aug_count += 1
+                percent = int((current_aug_count / total_aug_images) * 100)
+                label_aug.config(text=f"Generating augmentation {current_aug_count} of {total_aug_images} ({percent}%)")
+                bar_var.set(percent)
+                self.root.update_idletasks()
+
+        progress_win.destroy()
         self.augmentation_panel.destroy()
+
+        messagebox.showinfo("Success", f"Augmented images saved to:\n{output_dir}")
+
+
 
 if __name__ == "__main__":
     root = tk.Tk()
