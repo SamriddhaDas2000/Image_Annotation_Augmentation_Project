@@ -75,7 +75,7 @@ This will launch the GUI automatically.
    - **Draw Mode:** Create new bounding boxes.
 
 4. **Saving**
-   - Annotations are saved automatically in YOLO format (`.txt` files next to images).
+   - Annotations are saved automatically in YOLO format, JSON and XML format as per the user requirement beside the images.
 
 5. **Image Augmentation**
    - Click "Augment Images" → Choose transformations like flip, rotate, noise, blur, etc.
@@ -116,8 +116,6 @@ Image_Annotation_Augmentation_Project/
 ## 🛠️ Future Improvements
 
 - Add **polygon annotations** (besides rectangles)
-- Support **Pascal VOC** and **COCO** annotation formats
-- Enable **auto-saving** after each annotation
 - Add **dataset splitting** (train/val/test split)
 
 ---
