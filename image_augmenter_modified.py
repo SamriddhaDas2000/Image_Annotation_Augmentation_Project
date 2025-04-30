@@ -29,11 +29,11 @@ class ImageAugmenter:
                 "transform_bbox": self.transform_rotate_bbox
             },
             "blur": {
-                "func": lambda x: A.GaussianBlur(blur_limit=x, p=1),
+                "func": lambda sigma: A.GaussianBlur(blur_limit=0, sigma_limit=(sigma, sigma), p=1),
                 "requires_bbox": False,
                 "affects_bbox": False,
-                "default": (3, 7),
-                "range": ((1, 1), (15, 15))
+                "default": 5,
+                "range": (2, 10)
             },
             "noise": {
                 "func": lambda x: A.GaussNoise(std_range=(x,x), p=1),

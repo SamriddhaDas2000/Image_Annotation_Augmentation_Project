@@ -17,11 +17,22 @@ def apply_augmentations(image_path, save_dir, params):
     # Ensure save directory exists
     os.makedirs(save_dir, exist_ok=True)
 
+    # Blur logic with blur_limit and sigma_limit
+    blur_range = params.get("blur_limit", (3, 21))
+    sigma_range = params.get("sigma_limit", (0.5, 3.0))
+
+    blur_aug = A.GaussianBlur(
+        blur_limit=blur_range,
+        sigma_limit=sigma_range,
+        p=1.0
+    )
+
+    # Define all augmentations
     augmentations = {
         "flip": A.HorizontalFlip(p=1) if params.get("flip", False) else None,
         "rotate": A.Rotate(limit=params.get("rotate", 30), p=1),
         "crop": A.RandomCrop(height=height//2, width=width//2, p=1),
-        "blur": A.GaussianBlur(blur_limit=params.get("blur", (3, 7)), p=1),
+        "blur": blur_aug,
         "noise": A.GaussNoise(var_limit=params.get("noise", (10.0, 50.0)), p=1),
         "zoom": A.RandomScale(scale_limit=params.get("zoom", (0.8, 1.2)), p=1),
         "brightness": A.RandomBrightnessContrast(
@@ -34,6 +45,7 @@ def apply_augmentations(image_path, save_dir, params):
         )
     }
 
+    # Apply and save each augmentation
     for name, aug in augmentations.items():
         if aug is not None:
             transformed = aug(image=image)['image']
@@ -43,20 +55,20 @@ def apply_augmentations(image_path, save_dir, params):
     print(f"Augmented images saved in {save_dir}")
 
 # Example usage
-image_path = "images/20250110_151058.jpg"  # Change to your image path
-save_directory = "augmented_images"
+image_path = "images/sam_combined (140).jpg"  # Change to your image path
+save_directory = "augment"
 
-# Define parameter values with acceptable ranges
 params = {
-    "flip": True,  # Flip image
-    "rotate": 45,  # Range: -90 to 90
-    "blur": (5, 5),  # Kernel size range (odd numbers only)
-    "noise": (10.0, 50.0),  # Variance range
-    "zoom": (0.8, 1.2),  # Scale range (0.5 to 1.5 recommended)
-    "brightness": 0.3,  # Range: 0 to 1
-    "contrast": 0.3,  # Range: 0 to 1
-    "hue": 20,  # Range: -30 to 30
-    "saturation": 30  # Range: -50 to 50
+    "flip": True,
+    "rotate": 45,
+    "blur_limit": (9, 21),         # Kernel size range (odd numbers only)
+    "sigma_limit": (1.0, 3.0),     # Standard deviation range
+    "noise": (10.0, 50.0),
+    "zoom": (0.8, 1.2),
+    "brightness": 0.3,
+    "contrast": 0.3,
+    "hue": 20,
+    "saturation": 30
 }
 
 apply_augmentations(image_path, save_directory, params)

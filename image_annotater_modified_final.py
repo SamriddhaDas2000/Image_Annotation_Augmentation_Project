@@ -966,7 +966,7 @@ class ImageAnnotator:
                 default_val = config["default"]
 
                 # Create appropriate slider based on parameter type
-                if isinstance(min_val, tuple):  # For tuple parameters like blur
+                if isinstance(min_val, tuple) and aug_name == "zoom":  # For tuple parameters like blur
                     # First value slider
                     frame_val1 = tk.Frame(scrollable_frame)
                     frame_val1.grid(row=row+1, column=0, sticky="ew", padx=20)
