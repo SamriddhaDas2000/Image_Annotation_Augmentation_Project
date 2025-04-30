@@ -1,4 +1,4 @@
-Pillow==11.2.0
-opencv-python==4.9.0.80
-albumentations==1.4.14
+Pillow==10.4.0
+opencv-python==4.11.0.86
+albumentations==2.0.6
 numpy==1.26.4

@@ -52,7 +52,7 @@ pip install -r requirements.txt
 ## 🚀 How to Run
 
 ```bash
-python Image_annotater_modified.py
+python Image_annotater_modified_final.py
 ```
 
 This will launch the GUI automatically.
@@ -90,14 +90,15 @@ This will launch the GUI automatically.
 
 ```
 Image_Annotation_Augmentation_Project/
-├── Image_annotater_4.py         # Main GUI script
-├── image_augmenter.py           # Augmentation logic
-├── requirements.txt             # Required libraries
-├── README.md                    # This documentation
-├── Picture3.jpg                 # Welcome background image
-├── workflow.jpg                 # Workflow illustration
-├── tutorial_video.mp4           # Tutorial video (optional)
+├── Image_annotater_modified_final.py         # Main GUI script
+├── image_augmenter_modified.py               # Augmentation logic
+├── requirements.txt                          # Required libraries
+├── README.md                                 # This documentation
+├── Picture3.jpg                              # Welcome background image
+├── workflow.jpg                              # Workflow illustration
+├── test_codes                                # codes for testing the GUI
 └── (Your Image Datasets)
+
 ```
 
 ---
