@@ -314,7 +314,6 @@ class ImageAugmenter:
     #     return results
     def apply_augmentations(self, image_path, save_dir, params, bboxes=None, formats=None, class_list=None):
         """Apply augmentations to an image and save results"""
-        # Read image
         image = cv2.imread(image_path)
         if image is None:
             print(f"Error: Could not read image {image_path}")
@@ -333,24 +332,14 @@ class ImageAugmenter:
         if class_list is None:
             class_list = []
 
-
         for aug_name, active in params.items():
             if active and aug_name in self.augmentations:
                 aug_config = self.augmentations[aug_name]
                 value = params.get(f"{aug_name}_value", aug_config["default"])
 
-                # Skip if this augmentation requires bboxes but we don't have any
                 if aug_config["requires_bbox"] and not bboxes:
                     continue
 
-                # Convert bboxes to numpy array if they exist
-                # bboxes_np = None
-                # if bboxes and aug_config["requires_bbox"]:
-                #     bboxes_np = np.array(bboxes, dtype=np.float32)
-                #     if bboxes_np.size == 0:
-                #         bboxes_np = None
-
-                # Handle zoom augmentation differently
                 if aug_name == "zoom":
                     scale_range = value
                     min_val, max_val = scale_range
@@ -360,23 +349,18 @@ class ImageAugmenter:
                         A.PadIfNeeded(min_height=height, min_width=width, border_mode=cv2.BORDER_CONSTANT),
                         A.RandomCrop(height=height, width=width)
                     ]
-
-                    if bboxes:  # augment with bbox tracking
+                    if bboxes:
                         transform = A.Compose(base_transform,
                             bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels'], min_visibility=0.0)
                         )
-                    else:  # augment without bbox
+                    else:
                         transform = A.Compose(base_transform)
                 else:
                     transform = aug_config["func"](value)
 
-
                 if aug_name == "rotate":
                     transform = aug_config["func"](value)
                     angle = self.last_sampled_angle
-
-
-
 
                 try:
                     if aug_config["affects_bbox"] and bboxes:
@@ -384,96 +368,77 @@ class ImageAugmenter:
                             transformed = transform(image=image, bboxes=bboxes, class_labels=['object'] * len(bboxes))
                             transformed_image = transformed["image"]
                             transformed_bboxes = transformed["bboxes"]
-                            # transformed_labels = transformed["class_labels"]
                         else:
-                            # Apply transformation to image
                             transformed = transform(image=image)
                             transformed_image = transformed["image"]
-                            transformed_bboxes = []
-
-                            # Apply custom bbox transformation
                             transformed_bboxes = []
                             for bbox in bboxes:
                                 if aug_name == "flip":
                                     new_bbox = aug_config["transform_bbox"](bbox, width, height)
                                 elif aug_name == "rotate":
                                     new_bbox = aug_config["transform_bbox"](bbox, width, height, angle)
-                                # elif aug_name == "zoom":
-                                #     scale_factor = 1 / ((value[0] + value[1]) / 2)  # Average scale factor
-                                #     new_bbox = aug_config["transform_bbox"](bbox, width, height, scale_factor)
-
                                 if self.is_valid_bbox(new_bbox, width, height):
                                     transformed_bboxes.append(new_bbox)
 
-                        # Save augmented image
-                        aug_path = os.path.join(save_dir, f"{base_name}_{aug_name}.jpg")
-                        cv2.imwrite(aug_path, cv2.cvtColor(transformed_image, cv2.COLOR_RGB2BGR))
+                    else:
+                        # For transformations that don't affect bboxes
+                        transformed = transform(image=image)
+                        transformed_image = transformed["image"]
+                        transformed_bboxes = bboxes if bboxes else []
 
-                        # Save augmented bboxes if we have valid ones
-                        if transformed_bboxes:
-                            if formats.get("yolo", True):
-                                txt_path = os.path.join(save_dir, f"{base_name}_{aug_name}.txt")
-                                self.save_yolo_annotations(txt_path, transformed_bboxes, width, height)
+                    # Save augmented image
+                    aug_path = os.path.join(save_dir, f"{base_name}_{aug_name}.jpg")
+                    cv2.imwrite(aug_path, cv2.cvtColor(transformed_image, cv2.COLOR_RGB2BGR))
 
-                            if formats.get("json", False):
-                                json_path = os.path.join(save_dir, f"{base_name}_{aug_name}.json")
-                                with open(json_path, 'w') as jf:
-                                    json_data = []
-                                    for bbox in transformed_bboxes:
-                                        x_min, y_min, x_max, y_max, class_id = bbox
-                                        json_data.append({
-                                            "class_id": class_id,
-                                            "class_name": class_list[class_id] if class_id < len(class_list) else "unknown",
-                                            "x1": x_min,
-                                            "y1": y_min,
-                                            "x2": x_max,
-                                            "y2": y_max
-                                        })
-                                    json.dump(json_data, jf, indent=4)
+                    txt_path = None
+                    if transformed_bboxes and formats.get("yolo", True):
+                        txt_path = os.path.join(save_dir, f"{base_name}_{aug_name}.txt")
+                        self.save_yolo_annotations(txt_path, transformed_bboxes, width, height)
 
-                            if formats.get("xml", False):
-                                xml_path = os.path.join(save_dir, f"{base_name}_{aug_name}.xml")
-                                root = ET.Element("annotation")
-                                ET.SubElement(root, "filename").text = os.path.basename(aug_path)
-                                size = ET.SubElement(root, "size")
-                                ET.SubElement(size, "width").text = str(width)
-                                ET.SubElement(size, "height").text = str(height)
-                                ET.SubElement(size, "depth").text = "3"
-                                for bbox in transformed_bboxes:
-                                    x_min, y_min, x_max, y_max, class_id = bbox
-                                    obj = ET.SubElement(root, "object")
-                                    ET.SubElement(obj, "name").text = class_list[class_id] if class_id < len(class_list) else "unknown"
-                                    bndbox = ET.SubElement(obj, "bndbox")
-                                    ET.SubElement(bndbox, "xmin").text = str(int(x_min))
-                                    ET.SubElement(bndbox, "ymin").text = str(int(y_min))
-                                    ET.SubElement(bndbox, "xmax").text = str(int(x_max))
-                                    ET.SubElement(bndbox, "ymax").text = str(int(y_max))
-                                tree = ET.ElementTree(root)
-                                tree.write(xml_path)
+                    if transformed_bboxes and formats.get("json", False):
+                        json_path = os.path.join(save_dir, f"{base_name}_{aug_name}.json")
+                        with open(json_path, 'w') as jf:
+                            json_data = []
+                            for bbox in transformed_bboxes:
+                                x_min, y_min, x_max, y_max, class_id = bbox
+                                json_data.append({
+                                    "class_id": class_id,
+                                    "class_name": class_list[class_id] if class_id < len(class_list) else "unknown",
+                                    "x1": x_min,
+                                    "y1": y_min,
+                                    "x2": x_max,
+                                    "y2": y_max
+                                })
+                            json.dump(json_data, jf, indent=4)
 
-                            results.append((aug_path, txt_path))
+                    if transformed_bboxes and formats.get("xml", False):
+                        xml_path = os.path.join(save_dir, f"{base_name}_{aug_name}.xml")
+                        root = ET.Element("annotation")
+                        ET.SubElement(root, "filename").text = os.path.basename(aug_path)
+                        size = ET.SubElement(root, "size")
+                        ET.SubElement(size, "width").text = str(width)
+                        ET.SubElement(size, "height").text = str(height)
+                        ET.SubElement(size, "depth").text = "3"
+                        for bbox in transformed_bboxes:
+                            x_min, y_min, x_max, y_max, class_id = bbox
+                            obj = ET.SubElement(root, "object")
+                            ET.SubElement(obj, "name").text = class_list[class_id] if class_id < len(class_list) else "unknown"
+                            bndbox = ET.SubElement(obj, "bndbox")
+                            ET.SubElement(bndbox, "xmin").text = str(int(x_min))
+                            ET.SubElement(bndbox, "ymin").text = str(int(y_min))
+                            ET.SubElement(bndbox, "xmax").text = str(int(x_max))
+                            ET.SubElement(bndbox, "ymax").text = str(int(y_max))
+                        tree = ET.ElementTree(root)
+                        tree.write(xml_path)
 
-                        else:
-                            # For transformations that don't affect bboxes
-                            transformed = transform(image=image)['image']
-                            aug_path = os.path.join(save_dir, f"{base_name}_{aug_name}.jpg")
-                            cv2.imwrite(aug_path, cv2.cvtColor(transformed, cv2.COLOR_RGB2BGR))
+                    results.append((aug_path, txt_path))
 
-                            txt_path = None
-                            if bboxes and formats.get("yolo", True):
-                                orig_txt = os.path.splitext(image_path)[0] + ".txt"
-                                new_txt = os.path.join(save_dir, f"{base_name}_{aug_name}.txt")
-                                if os.path.exists(orig_txt):
-                                    import shutil
-                                    shutil.copy(orig_txt, new_txt)
-                                    txt_path = new_txt
-
-                            results.append((aug_path, txt_path))
                 except Exception as e:
                     print(f"Error applying {aug_name} to {image_path}: {str(e)}")
                     continue
 
         return results
+
 
 
     def is_valid_bbox(self, bbox, img_width, img_height):
