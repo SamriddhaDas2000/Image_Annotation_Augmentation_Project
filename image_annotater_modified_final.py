@@ -319,6 +319,7 @@ class ImageAnnotator:
         self.y_offset = 0
         self.augmenter = ImageAugmenter()
         self.annotation_formats = {"yolo": True, "json": False, "xml": False}
+        self.stop_augmentation = False
 
         # Setup GUI
         self.setup_ui()
@@ -1053,6 +1054,117 @@ class ImageAnnotator:
             command=self.apply_augmentations
         ).pack()
 
+    # def apply_augmentations(self):
+    #     output_dir = filedialog.askdirectory(title="Select Output Directory for Augmented Images")
+    #     if not output_dir:
+    #         return
+
+    #     params = {}
+    #     aug_multiplier = 0
+
+    #     for aug_name in self.augmenter.augmentations:
+    #         if self.aug_widgets[aug_name].get():
+    #             params[aug_name] = True
+    #             config = self.augmenter.augmentations[aug_name]
+
+    #             if "range" in config:
+    #                 if isinstance(config["range"][0], tuple):
+    #                     val1 = self.aug_widgets[f"{aug_name}_value1"].get()
+    #                     val2 = self.aug_widgets[f"{aug_name}_value2"].get()
+    #                     params[f"{aug_name}_value"] = (val1, val2)
+    #                 else:
+    #                     val = self.aug_widgets[f"{aug_name}_value"].get()
+    #                     params[f"{aug_name}_value"] = val
+
+    #             aug_multiplier += 1
+
+    #     if not params:
+    #         messagebox.showwarning("Warning", "No augmentations selected!")
+    #         return
+
+    #     formats = {fmt: var.get() for fmt, var in self.aug_format_vars.items()}
+
+    #     # Flag to handle early stopping
+    #     self.stop_augmentation = False
+
+    #     # Create a moveable and interruptible progress window
+    #     progress_win = tk.Toplevel(self.root)
+    #     progress_win.title("Augmenting Images")
+    #     progress_win.geometry("450x150")
+    #     progress_win.transient(self.root)
+    #     progress_win.grab_set()
+
+    #     def on_close():
+    #         if messagebox.askyesno("Stop?", "Do you want to stop augmentation?"):
+    #             self.stop_augmentation = True
+
+    #     progress_win.protocol("WM_DELETE_WINDOW", on_close)
+
+    #     tk.Label(progress_win, text="Augmenting images...").pack(pady=5)
+
+    #     bar_var = tk.DoubleVar()
+    #     progress_bar = ttk.Progressbar(progress_win, maximum=100, length=350, variable=bar_var)
+    #     progress_bar.pack(pady=5)
+
+    #     label_image = tk.Label(progress_win, text="")
+    #     label_image.pack()
+
+    #     label_aug = tk.Label(progress_win, text="")
+    #     label_aug.pack()
+
+    #     self.root.update_idletasks()
+
+    #     total_images = len(self.images)
+    #     total_aug_images = total_images * aug_multiplier
+    #     current_aug_count = 0
+
+    #     for img_idx, image_path in enumerate(self.images, start=1):
+    #         if self.stop_augmentation:
+    #             break
+
+    #         label_image.config(text=f"Processing image {img_idx} of {total_images}")
+    #         self.root.update_idletasks()
+
+    #         try:
+    #             img = Image.open(image_path)
+    #             img = ImageOps.exif_transpose(img)
+    #         except Exception as e:
+    #             print(f"Warning: Failed to open/transpose {image_path}: {e}")
+    #             continue
+
+    #         width, height = img.size
+    #         annotation_path = os.path.splitext(image_path)[0] + ".txt"
+    #         bboxes = None
+    #         if os.path.exists(annotation_path):
+    #             bboxes = self.augmenter.read_yolo_annotations(annotation_path, width, height)
+
+    #         generated_paths = self.augmenter.apply_augmentations(
+    #             image_path, output_dir, params, bboxes, formats=formats, class_list=self.classes
+    #         )
+
+    #         if isinstance(generated_paths, list):
+    #             generated_count = len(generated_paths)
+    #         else:
+    #             generated_count = aug_multiplier
+
+    #         for i in range(generated_count):
+    #             if self.stop_augmentation:
+    #                 break
+
+    #             current_aug_count += 1
+    #             percent = int((current_aug_count / total_aug_images) * 100)
+    #             label_aug.config(text=f"Generating augmentation {current_aug_count} of {total_aug_images} ({percent}%)")
+    #             bar_var.set(percent)
+    #             self.root.update_idletasks()
+
+    #     progress_win.destroy()
+    #     self.augmentation_panel.destroy()
+
+        # if self.stop_augmentation:
+        #     messagebox.showinfo("Stopped", f"Augmentation stopped early.\nPartial results saved in:\n{output_dir}")
+        # else:
+        #     messagebox.showinfo("Success", f"Augmented images saved to:\n{output_dir}")
+
     def apply_augmentations(self):
         output_dir = filedialog.askdirectory(title="Select Output Directory for Augmented Images")
         if not output_dir:
@@ -1081,68 +1193,86 @@ class ImageAnnotator:
             messagebox.showwarning("Warning", "No augmentations selected!")
             return
 
-        # ✅ Add format selection logic here
         formats = {fmt: var.get() for fmt, var in self.aug_format_vars.items()}
+        self.stop_augmentation = False
 
-        # Progress Window UI setup
-        progress_win = tk.Toplevel(self.root)
-        progress_win.title("Augmenting Images")
-        progress_win.geometry("450x150")
-        tk.Label(progress_win, text="Augmenting images...").pack(pady=5)
+        # Open progress window (handled on main thread)
+        self.progress_win = tk.Toplevel(self.root)
+        self.progress_win.title("Augmenting Images")
+        self.progress_win.geometry("450x150")
+        self.progress_win.transient(self.root)
 
-        bar_var = tk.DoubleVar()
-        progress_bar = ttk.Progressbar(progress_win, maximum=100, length=350, variable=bar_var)
-        progress_bar.pack(pady=5)
+        self.bar_var = tk.DoubleVar()
+        tk.Label(self.progress_win, text="Augmenting images...").pack(pady=5)
+        self.progress_bar = ttk.Progressbar(self.progress_win, maximum=100, length=350, variable=self.bar_var)
+        self.progress_bar.pack(pady=5)
+        self.label_image = tk.Label(self.progress_win, text="")
+        self.label_image.pack()
+        self.label_aug = tk.Label(self.progress_win, text="")
+        self.label_aug.pack()
 
-        label_image = tk.Label(progress_win, text="")
-        label_image.pack()
+        def on_close():
+            if messagebox.askyesno("Stop?", "Do you want to stop augmentation?"):
+                self.stop_augmentation = True
 
-        label_aug = tk.Label(progress_win, text="")
-        label_aug.pack()
+        self.progress_win.protocol("WM_DELETE_WINDOW", on_close)
 
-        self.root.update_idletasks()
+        # Start worker thread
+        thread = threading.Thread(target=self._run_augmentation_thread, args=(params, formats, output_dir, aug_multiplier))
+        thread.start()
 
-        total_images = len(self.images)
-        total_aug_images = total_images * aug_multiplier
-        current_aug_count = 0
+    def _run_augmentation_thread(self, params, formats, output_dir, aug_multiplier):
+        try:
+            total_images = len(self.images)
+            total_aug_images = total_images * aug_multiplier
+            current_aug_count = 0
 
-        for img_idx, image_path in enumerate(self.images, start=1):
-            label_image.config(text=f"Processing image {img_idx} of {total_images}")
-            self.root.update_idletasks()
+            for img_idx, image_path in enumerate(self.images, start=1):
+                if self.stop_augmentation:
+                    break
 
-            img = Image.open(image_path)
-            try:
-                img = ImageOps.exif_transpose(img)
-            except Exception as e:
-                print(f"Warning: Failed to transpose EXIF for {image_path}: {e}")
-
-            width, height = img.size
-            annotation_path = os.path.splitext(image_path)[0] + ".txt"
-            bboxes = None
-            if os.path.exists(annotation_path):
-                bboxes = self.augmenter.read_yolo_annotations(annotation_path, width, height)
-
-            # ✅ Pass formats and class list here
-            generated_paths = self.augmenter.apply_augmentations(
-                image_path, output_dir, params, bboxes, formats=formats, class_list=self.classes
-            )
-
-            if isinstance(generated_paths, list):
-                generated_count = len(generated_paths)
-            else:
-                generated_count = aug_multiplier
-
-            for i in range(generated_count):
-                current_aug_count += 1
-                percent = int((current_aug_count / total_aug_images) * 100)
-                label_aug.config(text=f"Generating augmentation {current_aug_count} of {total_aug_images} ({percent}%)")
-                bar_var.set(percent)
+                self.label_image.config(text=f"Processing image {img_idx} of {total_images}")
                 self.root.update_idletasks()
 
-        progress_win.destroy()
-        self.augmentation_panel.destroy()
+                try:
+                    img = Image.open(image_path)
+                    img = ImageOps.exif_transpose(img)
+                except Exception as e:
+                    print(f"Warning: Failed to open/transpose {image_path}: {e}")
+                    continue
 
-        messagebox.showinfo("Success", f"Augmented images saved to:\n{output_dir}")
+                width, height = img.size
+                annotation_path = os.path.splitext(image_path)[0] + ".txt"
+                bboxes = None
+                if os.path.exists(annotation_path):
+                    bboxes = self.augmenter.read_yolo_annotations(annotation_path, width, height)
+
+                generated_paths = self.augmenter.apply_augmentations(
+                    image_path, output_dir, params, bboxes, formats=formats, class_list=self.classes
+                )
+
+                generated_count = len(generated_paths) if isinstance(generated_paths, list) else aug_multiplier
+
+                for _ in range(generated_count):
+                    if self.stop_augmentation:
+                        break
+                    current_aug_count += 1
+                    percent = int((current_aug_count / total_aug_images) * 100)
+                    self.bar_var.set(percent)
+                    self.label_aug.config(text=f"Generating augmentation {current_aug_count} of {total_aug_images} ({percent}%)")
+                    self.root.update_idletasks()
+
+            self.progress_win.destroy()
+            self.augmentation_panel.destroy()
+
+            if self.stop_augmentation:
+                messagebox.showinfo("Stopped", f"Augmentation stopped early.\nPartial results saved in:\n{output_dir}")
+            else:
+                messagebox.showinfo("Success", f"Augmented images saved to:\n{output_dir}")
+
+        except Exception as e:
+            print(f"Error during augmentation: {e}")
+            messagebox.showerror("Error", str(e))
 
 
 
