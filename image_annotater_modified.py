@@ -29,6 +29,28 @@ class WelcomeScreen:
         self.show_logo_screen()
 
 
+    #     self.PORT = 8000  # or any available port you like
+    #     self.server_thread = None
+
+    #     threading.Thread(target=self.start_server, daemon=True).start()
+
+    # def start_server(self):
+    #     try:
+    #         # Change directory to where your video is
+    #         os.chdir("C:/Users/Samriddha/OneDrive - North Dakota University System/Samriddha/Coursework/ABEN 758/Image_Annotation_Augmentation_Project/")
+
+    #         handler = http.server.SimpleHTTPRequestHandler
+    #         with socketserver.TCPServer(("", self.PORT), handler) as httpd:
+    #             print(f"Serving at http://localhost:{self.PORT}")
+    #             httpd.serve_forever()
+    #     except OSError as e:
+    #         print(f"Failed to start server: {e}")
+
+    # def start_server_in_background(self):
+    #     """Call this after WelcomeScreen is created"""
+    #     self.server_thread = threading.Thread(target=self.start_server, daemon=True)
+    #     self.server_thread.start()
+
     def add_footer(self, parent_frame):
         footer = tk.Frame(parent_frame, bg='lightblue')
         footer.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
@@ -298,11 +320,6 @@ class ImageAnnotator:
         self.augmenter = ImageAugmenter()
         self.annotation_formats = {"yolo": True, "json": False, "xml": False}
         self.stop_augmentation = False
-        self.pan_start_x = None
-        self.pan_start_y = None
-        self.zoom_level = 1.0
-        self.min_scale_factor = 1.0  # to be updated on image fit
-
 
         # Setup GUI
         self.setup_ui()
@@ -387,139 +404,17 @@ class ImageAnnotator:
         self.h_scroll = tk.Scrollbar(self.image_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
         self.v_scroll = tk.Scrollbar(self.image_frame, orient=tk.VERTICAL, command=self.canvas.yview)
         self.canvas.configure(xscrollcommand=self.h_scroll.set, yscrollcommand=self.v_scroll.set)
-        self.canvas = tk.Canvas(self.image_frame, bg='gray', cursor="fleur")
-
 
         self.h_scroll.pack(side=tk.BOTTOM, fill=tk.X)
         self.v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Bind mouse events
-        self.canvas.bind("<MouseWheel>", self.on_mousewheel)  # Windows
-        self.canvas.bind("<Button-4>", self.on_mousewheel)    # Linux scroll up
-        self.canvas.bind("<Button-5>", self.on_mousewheel)    # Linux scroll down
-        self.canvas.bind("<ButtonPress-2>", self.on_middle_click)
-        self.canvas.bind("<B2-Motion>", self.on_middle_drag)
         self.canvas.bind("<ButtonPress-1>", self.on_mouse_press)
         self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
         self.canvas.bind("<Motion>", self.draw_guidelines)
         self.root.bind("<Configure>", self.on_window_resize)
-        self.root.bind("<Control-0>", lambda event: self.reset_zoom())
-
-    def reset_zoom(self):
-        self.zoom_level = 1.0
-        self.scale_factor = 1.0
-        self.scale_image_to_fit()  # this handles image resizing and annotation redraw
-
-    def on_mousewheel(self, event):
-        # Normalize scroll direction
-        if event.num == 5 or event.delta < 0:
-            direction = -1
-        elif event.num == 4 or event.delta > 0:
-            direction = 1
-        else:
-            return
-
-        # Define smooth step
-        zoom_step = 1.03
-        proposed_zoom = self.zoom_level * (zoom_step if direction > 0 else 1 / zoom_step)
-
-        # Clamp to limits
-        proposed_zoom = max(self.min_scale_factor, min(proposed_zoom, 5.0))
-
-        # Calculate effective factor
-        factor = proposed_zoom / self.zoom_level
-        self.zoom_level = proposed_zoom
-        self.scale_factor = proposed_zoom
-
-        self.zoom_image(factor, event.x, event.y)
-
-
-    def on_middle_click(self, event):
-        self.pan_start_x = event.x
-        self.pan_start_y = event.y
-
-    def on_middle_drag(self, event):
-
-        if self.zoom_level <= self.min_scale_factor:
-            return  # No panning when fully zoomed out
-
-        dx = event.x - self.pan_start_x
-        dy = event.y - self.pan_start_y
-
-        # Get current scroll position (0.0 to 1.0)
-        x0 = self.canvas.xview()[0]
-        y0 = self.canvas.yview()[0]
-
-        # Get scrollable size in screen pixels
-        scroll_width = self.canvas.bbox("all")[2] - self.canvas.winfo_width()
-        scroll_height = self.canvas.bbox("all")[3] - self.canvas.winfo_height()
-
-        # Avoid division by zero
-        if scroll_width > 0:
-            new_x = x0 - dx / scroll_width
-            self.canvas.xview_moveto(new_x)
-        if scroll_height > 0:
-            new_y = y0 - dy / scroll_height
-            self.canvas.yview_moveto(new_y)
-
-        self.pan_start_x = event.x
-        self.pan_start_y = event.y
-
-
-    def zoom_image(self, factor, center_x, center_y):
-        if not self.original_image:
-            return
-
-        # Proposed zoom
-        new_zoom = self.zoom_level * factor
-
-        # Clamp limits
-        if new_zoom < self.min_scale_factor:
-            new_zoom = self.min_scale_factor
-            factor = self.min_scale_factor / self.zoom_level
-        elif new_zoom > 5.0:
-            new_zoom = 5.0
-            factor = 5.0 / self.zoom_level
-
-        self.zoom_level = new_zoom
-        self.scale_factor = new_zoom
-
-        # Mouse position in canvas
-        canvas_mouse_x = self.canvas.canvasx(center_x)
-        canvas_mouse_y = self.canvas.canvasy(center_y)
-
-        # Relative position in the image before zoom
-        rel_x = (canvas_mouse_x - self.x_offset) / (self.original_image.width * (1 / factor) * self.scale_factor)
-        rel_y = (canvas_mouse_y - self.y_offset) / (self.original_image.height * (1 / factor) * self.scale_factor)
-
-        # Resize image
-        new_width = int(self.original_image.width * self.scale_factor)
-        new_height = int(self.original_image.height * self.scale_factor)
-
-        if new_width > 10000 or new_height > 10000:
-            print("Zoom limit hit: image would be too large")
-            return
-
-        self.current_image = self.original_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        self.tk_image = ImageTk.PhotoImage(self.current_image)
-
-        # Clear canvas and set new scroll region
-        self.canvas.delete("all")
-        self.canvas.config(scrollregion=(0, 0, new_width, new_height))
-
-        # New offset so image zooms around cursor
-        self.x_offset = canvas_mouse_x - rel_x * new_width
-        self.y_offset = canvas_mouse_y - rel_y * new_height
-
-        # Draw image
-        self.canvas.create_image(self.x_offset, self.y_offset, anchor=tk.NW, image=self.tk_image)
-
-        # Redraw boxes
-        self.draw_existing_annotations()
-
-
 
     def update_annotation_format(self):
         for fmt in self.annotation_formats:
@@ -531,7 +426,7 @@ class ImageAnnotator:
 
     def set_select_mode(self):
         self.mode = "select"
-        self.canvas.config(cursor="fleur")
+        self.canvas.config(cursor="crosshair")
         self.clear_guidelines()
 
     def set_draw_mode(self):
@@ -546,27 +441,23 @@ class ImageAnnotator:
     def draw_guidelines(self, event):
         self.clear_guidelines()
 
-        # Get canvas coordinates accounting for pan/zoom
         x = self.canvas.canvasx(event.x)
         y = self.canvas.canvasy(event.y)
 
-        scroll_x0 = self.canvas.canvasx(0)
-        scroll_x1 = self.canvas.canvasx(self.canvas.winfo_width())
-        scroll_y0 = self.canvas.canvasy(0)
-        scroll_y1 = self.canvas.canvasy(self.canvas.winfo_height())
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
 
         vert_guideline = self.canvas.create_line(
-            x, scroll_y0, x, scroll_y1,
+            x, 0, x, canvas_height,
             fill="red", dash=(2, 2), width=1, tags="guideline"
         )
 
         horiz_guideline = self.canvas.create_line(
-            scroll_x0, y, scroll_x1, y,
+            0, y, canvas_width, y,
             fill="red", dash=(2, 2), width=1, tags="guideline"
         )
 
         self.guidelines = [vert_guideline, horiz_guideline]
-
 
     def clear_guidelines(self):
         for guideline in self.guidelines:
@@ -709,11 +600,7 @@ class ImageAnnotator:
         img_width, img_height = self.original_image.size
         width_ratio = canvas_width / img_width
         height_ratio = canvas_height / img_height
-        fit_scale = min(width_ratio, height_ratio)
-        self.scale_factor = fit_scale
-        self.min_scale_factor = fit_scale
-        self.zoom_level = fit_scale  # VERY IMPORTANT
-
+        self.scale_factor = min(width_ratio, height_ratio)
 
         new_width = int(img_width * self.scale_factor)
         new_height = int(img_height * self.scale_factor)
@@ -727,9 +614,6 @@ class ImageAnnotator:
         self.canvas.delete("all")
         self.canvas.config(scrollregion=(0, 0, new_width, new_height))
         self.canvas.create_image(self.x_offset, self.y_offset, anchor=tk.NW, image=self.tk_image)
-        self.min_scale_factor = self.scale_factor
-
-
 
         self.draw_existing_annotations()
 
