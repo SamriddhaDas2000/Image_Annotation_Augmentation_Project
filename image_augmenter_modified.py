@@ -33,7 +33,7 @@ class ImageAugmenter:
                 "requires_bbox": False,
                 "affects_bbox": False,
                 "default": 5,
-                "range": (2, 10)
+                "range": (2, 30)
             },
             "noise": {
                 "func": lambda x: A.GaussNoise(std_range=(x,x), p=1),
