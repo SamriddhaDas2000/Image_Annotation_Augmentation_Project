@@ -52,10 +52,10 @@ class WelcomeScreen:
         welcome_label.pack(pady=1)
 
         # Main area with canvas
-        self.main_area = tk.Canvas(self.frame, highlightthickness=0)
+        self.main_area = tk.Canvas(self.frame, highlightthickness=0, bg = 'black')
         self.main_area.pack(fill=tk.BOTH, expand=True)
 
-        self.original_bg_image = Image.open("Picture3.jpg")
+        self.original_bg_image = Image.open("logo.jpg")
 
         self.skip_button = tk.Button(self.main_area, text="Skip", command=self.on_finish, bg="lightgray", width=12, height=2, font=("Helvetica", 16, "bold"))
         self.next_button = tk.Button(self.main_area, text="Next", command=self.next_slide, bg="lightblue", width=12, height=2, font=("Helvetica", 16, "bold"))
@@ -66,32 +66,75 @@ class WelcomeScreen:
 
 
 
+    # def resize_background(self, event):
+    #     canvas_width = event.width
+    #     canvas_height = event.height
+
+    #     resized_bg = self.original_bg_image.resize((canvas_width, canvas_height), Image.Resampling.LANCZOS)
+    #     self.bg_photo = ImageTk.PhotoImage(resized_bg)
+
+    #     self.main_area.delete("all")
+    #     self.main_area.create_image(0, 0, image=self.bg_photo, anchor='nw')
+
+    #     # Display instruction text in center top
+    #     instruction_text = "👉 To learn about the software and instructions, press Next.\n👉 Or press Skip to dive straight into annotating!"
+    #     self.main_area.create_text(canvas_width // 2, 90, text=instruction_text, font=("Helvetica", 18, "bold"), fill="white", justify="left")
+
+    #     # Create arrows
+    #     # Arrow to Skip (bottom-left)
+    #     # self.main_area.create_line(150, canvas_height - 120, 100, canvas_height - 80, arrow=tk.LAST, width=3, fill="yellow")
+    #     # self.main_area.create_text(170, canvas_height - 140, text="Skip →", font=("Helvetica", 14, "bold"), fill="yellow")
+
+    #     # # Arrow to Next (bottom-right)
+    #     # self.main_area.create_line(canvas_width - 150, canvas_height - 120, canvas_width - 100, canvas_height - 80, arrow=tk.LAST, width=3, fill="yellow")
+    #     # self.main_area.create_text(canvas_width - 170, canvas_height - 140, text="← Next", font=("Helvetica", 14, "bold"), fill="yellow")
+
+    #     # Place buttons
+    #     self.main_area.create_window(100, canvas_height - 40, window=self.skip_button)
+    #     self.main_area.create_window(canvas_width - 100, canvas_height - 40, window=self.next_button)
+
     def resize_background(self, event):
         canvas_width = event.width
         canvas_height = event.height
 
-        resized_bg = self.original_bg_image.resize((canvas_width, canvas_height), Image.Resampling.LANCZOS)
-        self.bg_photo = ImageTk.PhotoImage(resized_bg)
+        self.main_area.delete("all")  # Clear previous drawings
 
-        self.main_area.delete("all")
-        self.main_area.create_image(0, 0, image=self.bg_photo, anchor='nw')
+        # Get original image size
+        img_width, img_height = self.original_bg_image.size
 
-        # Display instruction text in center top
-        instruction_text = "👉 To learn about the software and instructions, press Next.\n👉 Or press Skip to dive straight into annotating!"
-        self.main_area.create_text(canvas_width // 2, 120, text=instruction_text, font=("Helvetica", 18, "bold"), fill="white", justify="left")
+        # Calculate scale to fit image within canvas while maintaining aspect ratio
+        scale = min(canvas_width / img_width, canvas_height / img_height)
 
-        # Create arrows
-        # Arrow to Skip (bottom-left)
-        # self.main_area.create_line(150, canvas_height - 120, 100, canvas_height - 80, arrow=tk.LAST, width=3, fill="yellow")
-        # self.main_area.create_text(170, canvas_height - 140, text="Skip →", font=("Helvetica", 14, "bold"), fill="yellow")
+        # Only resize if the image is larger than the canvas
+        if scale < 1.0:
+            new_width = int(img_width * scale)
+            new_height = int(img_height * scale)
+            resized_image = self.original_bg_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        else:
+            resized_image = self.original_bg_image.copy()
+            new_width, new_height = img_width, img_height
 
-        # # Arrow to Next (bottom-right)
-        # self.main_area.create_line(canvas_width - 150, canvas_height - 120, canvas_width - 100, canvas_height - 80, arrow=tk.LAST, width=3, fill="yellow")
-        # self.main_area.create_text(canvas_width - 170, canvas_height - 140, text="← Next", font=("Helvetica", 14, "bold"), fill="yellow")
+        self.bg_photo = ImageTk.PhotoImage(resized_image)
+
+        # Center image
+        x = (canvas_width - new_width) // 2
+        y = (canvas_height - new_height) // 2
+        self.main_area.create_image(x, y, image=self.bg_photo, anchor='nw')
+
+        # Instruction text (stay on top, center-top)
+        instruction_text = (
+            "👉 To learn about the software and instructions, press Next.\n\n"
+
+            "👉 Or press Skip to dive straight into annotating!"
+        )
+        self.main_area.create_text(canvas_width // 2, 70, text=instruction_text,
+                                font=("Helvetica", 14, "bold"), fill="white", justify="left")
 
         # Place buttons
         self.main_area.create_window(100, canvas_height - 40, window=self.skip_button)
         self.main_area.create_window(canvas_width - 100, canvas_height - 40, window=self.next_button)
+
+
 
     def show_instruction_screen(self):
         self.clear_frame()
