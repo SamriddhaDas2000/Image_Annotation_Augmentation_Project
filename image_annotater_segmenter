@@ -225,7 +225,7 @@ class WelcomeScreen:
         self.content_area.pack(fill=tk.BOTH, expand=True)
 
         # Load workflow image
-        self.original_workflow_image = Image.open("workflow.png")  # Replace with your real image
+        self.original_workflow_image = Image.open("workflow.jpg")  # Replace with your real image
         self.workflow_img_label = tk.Label(self.content_area, bg='white')
         self.image_window = self.content_area.create_window(0, 0, window=self.workflow_img_label, anchor="n")
 
@@ -259,7 +259,7 @@ class WelcomeScreen:
         canvas_width = event.width
         canvas_height = event.height
 
-        max_width = canvas_width - 200  # Margin
+        max_width = canvas_width - 100  # Margin
         max_height = 550                # Max height for image
 
         img_ratio = self.original_workflow_image.width / self.original_workflow_image.height
@@ -276,7 +276,7 @@ class WelcomeScreen:
         self.workflow_img_label.image = self.workflow_tk_img  # Keep reference
 
         # Reposition the image in canvas
-        self.content_area.coords(self.image_window, canvas_width // 2, 10)
+        self.content_area.coords(self.image_window, canvas_width // 2, 60)
 
         # Reposition the link below image
         self.content_area.coords(self.link_window, canvas_width // 2, 60 + resized_height)
@@ -345,6 +345,11 @@ class ImageAnnotator:
         self.pan_start_y = None
         self.zoom_level = 1.0
         self.min_scale_factor = 1.0  # to be updated on image fit
+        self.mode = "select"  # Already exists
+        self.current_polygon = []
+        self.polygon_ids = []
+        self.is_polygon_mode = False
+
 
 
         # Setup GUI
@@ -396,6 +401,10 @@ class ImageAnnotator:
         # Draw button
         tk.Button(left_panel, text="Draw Bounding Box", command=self.set_draw_mode,
                  bg='lightblue', fg='navy').pack(pady=5, fill=tk.X)
+
+        tk.Button(left_panel, text="Draw Polygon", command=self.set_polygon_mode,
+          bg='lightblue', fg='navy').pack(pady=5, fill=tk.X)
+
 
         # Delete button
         tk.Button(left_panel, text="Delete Selected", command=self.delete_selected,
@@ -449,6 +458,18 @@ class ImageAnnotator:
         self.canvas.bind("<Motion>", self.draw_guidelines)
         self.root.bind("<Configure>", self.on_window_resize)
         self.root.bind("<Control-0>", lambda event: self.reset_zoom())
+
+    def set_polygon_mode(self):
+        if not self.class_var.get() or self.class_var.get() == "Select Class":
+            messagebox.showerror("Error", "Please select a class first!")
+            self.mode_var.set("select")
+            return
+        self.mode = "polygon"
+        self.current_class = self.class_var.get()
+        self.canvas.config(cursor="crosshair")
+        self.current_polygon = []
+        self.polygon_ids = []
+
 
     def reset_zoom(self):
         self.zoom_level = 1.0
@@ -929,6 +950,41 @@ class ImageAnnotator:
                     self.highlight_annotation(i)
                     break
 
+        elif self.mode == "polygon":
+            if not self.class_var.get() or self.class_var.get() == "Select Class":
+                messagebox.showerror("Error", "Please select a class first!")
+                self.mode_var.set("select")
+                return
+
+            x = self.canvas.canvasx(event.x)
+            y = self.canvas.canvasy(event.y)
+            self.current_polygon.append((x, y))
+
+            # Draw the point
+            radius = 3
+            point_id = self.canvas.create_oval(
+                x - radius, y - radius, x + radius, y + radius,
+                fill=self.colors[self.classes.index(self.current_class)], outline=""
+            )
+            self.polygon_ids.append(point_id)
+
+            # Draw lines between points
+            if len(self.current_polygon) > 1:
+                line_id = self.canvas.create_line(
+                    self.current_polygon[-2][0], self.current_polygon[-2][1],
+                    x, y,
+                    fill=self.colors[self.classes.index(self.current_class)],
+                    width=2
+                )
+                self.polygon_ids.append(line_id)
+
+            # If close to first point, auto-close the polygon
+            if len(self.current_polygon) >= 3:
+                first_x, first_y = self.current_polygon[0]
+                if abs(x - first_x) < 10 and abs(y - first_y) < 10:
+                    self.finish_polygon_annotation()
+
+
     def on_mouse_drag(self, event):
         if self.drawing and self.rect:
             x = self.canvas.canvasx(event.x) - self.x_offset
@@ -980,6 +1036,36 @@ class ImageAnnotator:
 
             self.mode_var.set("select")
             self.mode = "select"
+
+    def finish_polygon_annotation(self):
+        if len(self.current_polygon) < 3:
+            return
+
+        class_id = self.classes.index(self.current_class)
+        image_path = self.images[self.current_image_index]
+        img_width, img_height = self.original_image.size
+
+        norm_points = [(round((x - self.x_offset) / self.scale_factor / img_width, 6),
+                        round((y - self.y_offset) / self.scale_factor / img_height, 6)) for x, y in self.current_polygon]
+
+        self.annotations[image_path].append({
+            "class_id": class_id,
+            "class_name": self.current_class,
+            "polygon": norm_points
+        })
+
+        self.update_annotations_list()
+
+        # Clear temp drawing
+        for obj_id in self.polygon_ids:
+            self.canvas.delete(obj_id)
+        self.polygon_ids = []
+        self.current_polygon = []
+
+        self.mode = "select"
+        self.mode_var.set("select")
+
+
 
     def save_current_annotations(self, only_if_annotations=False):
         if not self.images or self.current_image_index >= len(self.images):
