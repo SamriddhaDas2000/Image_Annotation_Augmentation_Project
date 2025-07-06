@@ -737,7 +737,7 @@ class ImageAnnotator:
         self.update_annotations_list()
 
         # Update window title
-        self.root.title(f"Image Annotation Tool - {os.path.basename(image_path)} ({self.current_image_index+1}/{len(self.images)})")
+        self.root.title(f"An-Augmenter - (Image Annotation and Data Augmentation Tool) - {os.path.basename(image_path)} ({self.current_image_index+1}/{len(self.images)})")
 
     def scale_image_to_fit(self):
         if not self.original_image:
@@ -828,16 +828,51 @@ class ImageAnnotator:
                 x1, y1, x2, y2,
                 outline=color, width=2, tags="annotation"
             )
-            text_id = self.canvas.create_text(
-                x1, y1,
-                text=ann["class_name"],
-                anchor=tk.NW, fill=color, tags="annotation"
+
+            label_text = ann["class_name"]
+            font = ("Helvetica", 10)
+            padding = 4
+
+            # Measure text size by creating a temporary text item
+            tmp_id = self.canvas.create_text(0, 0, text=label_text, font=font)
+            bbox = self.canvas.bbox(tmp_id)
+            self.canvas.delete(tmp_id)
+
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+
+            # Default position above the box
+            bg_x1 = x1-1
+            bg_y1 = y1 - text_height - 2 * padding
+            # If not enough space above, move below the box
+            if bg_y1 < 0:
+                bg_y1 = y1 + 2
+
+            bg_x2 = bg_x1 + text_width + 2 * padding
+            bg_y2 = bg_y1 + text_height + 2 * padding
+
+            # Background rectangle for text
+            text_bg = self.canvas.create_rectangle(
+                bg_x1, bg_y1, bg_x2, bg_y2,
+                fill=color, outline=color, tags="annotation"
             )
+
+            # Label text
+            text_id = self.canvas.create_text(
+                bg_x1 + padding, bg_y1 + padding,
+                text=label_text,
+                anchor=tk.NW,
+                fill="black",
+                font=font,
+                tags="annotation"
+            )
+
             self.current_bbox_ids.append((rect_id, text_id, ann))
 
             if i == self.selected_annotation_index:
                 self.canvas.itemconfig(rect_id, width=4)
                 self.canvas.itemconfig(text_id, fill="white")
+
 
     def update_annotations_list(self):
         self.annotations_list.delete(0, tk.END)
