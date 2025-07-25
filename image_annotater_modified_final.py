@@ -345,6 +345,7 @@ class ImageAnnotator:
         self.pan_start_y = None
         self.zoom_level = 1.0
         self.min_scale_factor = 1.0  # to be updated on image fit
+        self.pending_box = None
 
 
         # Setup GUI
@@ -449,6 +450,13 @@ class ImageAnnotator:
         self.canvas.bind("<Motion>", self.draw_guidelines)
         self.root.bind("<Configure>", self.on_window_resize)
         self.root.bind("<Control-0>", lambda event: self.reset_zoom())
+        self.root.bind("<d>", lambda e: self.next_image())
+        self.root.bind("<a>", lambda e: self.prev_image())
+        self.root.bind("<w>", lambda e: self.enter_draw_mode_from_key())
+
+    def enter_draw_mode_from_key(self):
+        self.mode_var.set("draw")
+        self.set_draw_mode()
 
     def reset_zoom(self):
         self.zoom_level = 1.0
@@ -897,9 +905,10 @@ class ImageAnnotator:
             self.highlight_annotation(selected_index)
 
     def highlight_annotation(self, index):
-        for bbox_id in self.current_bbox_ids:
-            self.canvas.itemconfig(bbox_id[0], width=2)
-            self.canvas.itemconfig(bbox_id[1], fill=self.colors[bbox_id[2]["class_id"]])
+        for i, (rect_id, text_id, ann) in enumerate(self.current_bbox_ids):
+            self.canvas.itemconfig(rect_id, width=2)
+            # Restore all text fills to black
+            self.canvas.itemconfig(text_id, fill="black")
 
         if index < len(self.current_bbox_ids):
             self.canvas.itemconfig(self.current_bbox_ids[index][0], width=4)
@@ -908,17 +917,36 @@ class ImageAnnotator:
             self.canvas.tag_raise(self.current_bbox_ids[index][1])
 
     def delete_selected(self):
+        image_path = self.images[self.current_image_index]
+
         if self.selected_annotation_index is None:
             messagebox.showwarning("Warning", "No annotation selected to delete!")
             return
 
-        image_path = self.images[self.current_image_index]
-
         if self.selected_annotation_index < len(self.annotations[image_path]):
             del self.annotations[image_path][self.selected_annotation_index]
             self.selected_annotation_index = None
-            self.load_current_image()
+            self.annotations_list.selection_clear(0, tk.END)
+
             self.update_annotations_list()
+            self.redraw_image_and_annotations()
+
+    def redraw_image_and_annotations(self):
+        # Resize the current image (based on current zoom)
+        new_width = int(self.original_image.width * self.scale_factor)
+        new_height = int(self.original_image.height * self.scale_factor)
+
+        self.current_image = self.original_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        self.tk_image = ImageTk.PhotoImage(self.current_image)
+
+        # Redraw the image
+        self.canvas.delete("all")
+        self.canvas.config(scrollregion=(0, 0, new_width, new_height))
+        self.canvas.create_image(self.x_offset, self.y_offset, anchor=tk.NW, image=self.tk_image)
+
+        # Then redraw bounding boxes
+        self.draw_existing_annotations()
+
 
     def prev_image(self):
         if self.current_image_index > 0:
@@ -936,11 +964,6 @@ class ImageAnnotator:
 
     def on_mouse_press(self, event):
         if self.mode == "draw":
-            if not self.class_var.get() or self.class_var.get() == "Select Class":
-                messagebox.showerror("Error", "Please select a class first!")
-                self.mode_var.set("select")
-                return
-
             self.drawing = True
             self.start_x = self.canvas.canvasx(event.x) - self.x_offset
             self.start_y = self.canvas.canvasy(event.y) - self.y_offset
@@ -949,20 +972,30 @@ class ImageAnnotator:
                 self.start_y + self.y_offset,
                 self.start_x + self.x_offset,
                 self.start_y + self.y_offset,
-                outline=self.colors[self.classes.index(self.current_class)], width=2
+                outline="red", width=2
             )
+
         elif self.mode == "select":
             x = self.canvas.canvasx(event.x)
             y = self.canvas.canvasy(event.y)
 
+            found = False
             for i, (rect_id, text_id, ann) in enumerate(self.current_bbox_ids):
                 coords = self.canvas.coords(rect_id)
-                if (coords[0] <= x <= coords[2] and coords[1] <= y <= coords[3]):
+                if coords[0] <= x <= coords[2] and coords[1] <= y <= coords[3]:
                     self.selected_annotation_index = i
                     self.annotations_list.selection_clear(0, tk.END)
                     self.annotations_list.selection_set(i)
                     self.highlight_annotation(i)
+                    found = True
                     break
+
+            if not found:
+                # Clear any previous selection if click is outside all boxes
+                self.selected_annotation_index = None
+                self.annotations_list.selection_clear(0, tk.END)
+                self.draw_existing_annotations()
+
 
     def on_mouse_drag(self, event):
         if self.drawing and self.rect:
@@ -996,25 +1029,52 @@ class ImageAnnotator:
             y2 = min(img_height, max(orig_y1, orig_y2))
 
             if abs(x2 - x1) > 5 and abs(y2 - y1) > 5:
-                class_id = self.classes.index(self.current_class)
-                image_path = self.images[self.current_image_index]
-                self.annotations[image_path].append({
-                    "class_id": class_id,
-                    "class_name": self.current_class,
-                    "x1": x1,
-                    "y1": y1,
-                    "x2": x2,
-                    "y2": y2
-                })
-
-                self.update_annotations_list()
-                self.draw_existing_annotations()
+                self.pending_box = (x1, y1, x2, y2)
+                self.show_class_selection_popup(event.x_root, event.y_root)
 
             self.canvas.delete(self.rect)
             self.rect = None
 
             self.mode_var.set("select")
             self.mode = "select"
+
+# ------------------------------------------------------------------------------------------------------------------------
+
+    def show_class_selection_popup(self, x, y):
+        popup = tk.Toplevel(self.root)
+        popup.wm_overrideredirect(True)
+        popup.geometry(f"+{x}+{y}")
+        popup.config(bg="white", borderwidth=2)
+
+        tk.Label(popup, text="Select Class:", bg="white").pack()
+
+        for cls in self.classes:
+            btn = tk.Button(popup, text=cls, command=lambda c=cls, p=popup: self.assign_class_to_pending_box(c, p))
+            btn.pack(fill="x")
+
+    def assign_class_to_pending_box(self, selected_class, popup_window):
+        popup_window.destroy()
+        if not self.pending_box:
+            return
+
+        x1, y1, x2, y2 = self.pending_box
+        self.pending_box = None
+        image_path = self.images[self.current_image_index]
+        class_id = self.classes.index(selected_class)
+
+        self.annotations[image_path].append({
+            "class_id": class_id,
+            "class_name": selected_class,
+            "x1": x1,
+            "y1": y1,
+            "x2": x2,
+            "y2": y2
+        })
+
+        self.update_annotations_list()
+        self.draw_existing_annotations()
+
+# ----------------------------------------------------------------------------------------------------------------------------------
 
     def save_current_annotations(self, only_if_annotations=False):
         if not self.images or self.current_image_index >= len(self.images):
