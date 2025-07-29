@@ -1,4 +1,0 @@
-LSE
-LME
-MBE
-MSE

@@ -52,7 +52,8 @@ pip install -r requirements.txt
 ## 🚀 How to Run
 
 ```bash
-python image_annotater_modified_final.py
+python src/image_annotater_modified_final.py
+# On Windows: python .\src\image_annotater_modified_final.py
 ```
 
 This will launch the GUI automatically.
@@ -84,20 +85,37 @@ This will launch the GUI automatically.
 6. **Video Tutorial Link**
    - Click on the link for software demonstration -> (https://drive.google.com/file/d/1XJNHgAtaJI-TmCalsGj5csDTL6A5jbMP/view?usp=sharing).
 
+## ⌨️ Hotkeys
+
+| Shortcut           | Action                           |
+|--------------------|----------------------------------|
+| `w`                | Create a rect box                |
+| `a`                | Previous image                   |
+| `d`                | Next image                       |
+| `Ctrl + 0`         | Zoom out to fit to window        |
+| `Mouse Wheel Up`   | Zoom in                          |
+| `Mouse Wheel Down` | Zoom out                         |
+| `Mouse Wheel Click`| Pan                              |
+
 ---
 
 ## 📂 Folder Structure
 
 ```
 Image_Annotation_Augmentation_Project/
-├── Image_annotater_modified_final.py         # Main GUI script
-├── image_augmenter_modified.py               # Augmentation logic
-├── requirements.txt                          # Required libraries
-├── README.md                                 # This documentation
-├── Picture3.jpg                              # Welcome background image
-├── workflow.jpg                              # Workflow illustration
-├── test_codes                                # codes for testing the GUI
-└── (Your Image Datasets)
+├── docs/
+│  ├── logo.JPG                             # Welcome background image
+│  ├── workflow.png                         # Workflow illustration
+├── src/                                    # Source Code
+│  ├── Image_annotater_modified_final.py    # Main GUI script
+│  ├── image_augmenter_modified.py          # Augmentation logic
+├── images                                  # sample test images directory
+├── test_codes                              # codes for testing the GUI
+├── LICENSE                                 # GPL-2.0
+├── README.md                               # This documentation
+└── requirements.txt                        # Required libraries
+
+
 
 ```
 
