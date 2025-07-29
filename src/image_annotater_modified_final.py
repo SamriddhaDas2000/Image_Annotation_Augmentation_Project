@@ -55,7 +55,7 @@ class WelcomeScreen:
         self.main_area = tk.Canvas(self.frame, highlightthickness=0, bg = 'black')
         self.main_area.pack(fill=tk.BOTH, expand=True)
 
-        self.original_bg_image = Image.open("docs\logo.JPG")
+        self.original_bg_image = Image.open("docs/logo.JPG")
 
         self.skip_button = tk.Button(self.main_area, text="Skip", command=self.on_finish, bg="lightgray", width=12, height=2, font=("Helvetica", 16, "bold"))
         self.next_button = tk.Button(self.main_area, text="Next", command=self.next_slide, bg="lightblue", width=12, height=2, font=("Helvetica", 16, "bold"))
@@ -225,7 +225,7 @@ class WelcomeScreen:
         self.content_area.pack(fill=tk.BOTH, expand=True)
 
         # Load workflow image
-        self.original_workflow_image = Image.open("docs\workflow.png")  # Replace with your real image
+        self.original_workflow_image = Image.open("docs/workflow.png")  # Replace with your real image
         self.workflow_img_label = tk.Label(self.content_area, bg='white')
         self.image_window = self.content_area.create_window(0, 0, window=self.workflow_img_label, anchor="n")
 
