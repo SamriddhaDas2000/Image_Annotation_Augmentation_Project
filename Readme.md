@@ -5,6 +5,8 @@
 Welcome to **An-Augmenter**, a powerful and user-friendly **Image Annotation** and **Augmentation** tool designed to simplify dataset preparation for AI/ML projects.
 This software allows you to quickly **annotate images**, **assign classes**, and **perform smart augmentations** — all through an **interactive GUI**.
 
+![An-Augmenter Logo](docs/software%20logo%20details_new.PNG)
+
 ---
 
 ## ✨ Features
